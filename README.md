@@ -32,7 +32,7 @@ No install process, no dependencies, no build step.
 
 1. Clone the repo:
    ```bash
-   git clone https://github.com/yourusername/speed-circuit-3d.git
+   git clone https://github.com/Coder3601/Speed-Circuit-3D.git
    ```
 2. Open the latest numbered HTML file in your browser.
 3. That's it.
