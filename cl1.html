@@ -1,0 +1,1648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Speed Circuit</title>
+    <style>
+        :root {
+            --primary: #ff4500;
+            --bg: #06070a;
+            --panel: #0d0f14;
+            --accent: #00ff88;
+            --detail: #00e5ff;
+            --text-main: #f0f3f8;
+            --text-muted: #5a6073;
+            --border: #1a1d28;
+        }
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace, system-ui;
+            background-color: var(--bg);
+            color: var(--text-main);
+            touch-action: none;
+        }
+        #game-canvas { display: block; width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+
+        .screen {
+            background: var(--panel); padding: 24px; border-radius: 0px;
+            box-shadow: 12px 12px 0px rgba(0,0,0,0.95);
+            text-align: center; pointer-events: auto;
+            border: 2px solid var(--primary);
+            max-width: 90%; width: 480px; display: none;
+        }
+        .screen.active { display: block; }
+
+        .dash-header {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.75rem; color: var(--detail);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px; margin-bottom: 15px; text-transform: uppercase;
+        }
+
+        h1 { color: var(--primary); font-size: 2.2rem; margin: 10px 0; text-transform: uppercase; letter-spacing: 5px; font-weight: 900; }
+        h2 { color: var(--accent); text-transform: uppercase; font-size: 1.2rem; letter-spacing: 2px; margin: 10px 0; }
+
+        .option-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #10131c; border: 1px solid var(--border); margin-bottom: 12px; }
+        .option-label { font-weight: bold; font-size: 0.8rem; letter-spacing: 1px; color: var(--text-main); }
+
+        .telemetry-toggle { background: #171b26; border: 1px solid var(--border); color: var(--text-muted); padding: 6px 15px; font-family: inherit; cursor: pointer; font-weight: bold; }
+        .telemetry-toggle.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+        button { background: var(--primary); color: #000; border: none; padding: 12px 20px; font-size: 1rem; font-family: inherit; cursor: pointer; margin: 6px 0; width: 100%; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; transition: background 0.1s, color 0.1s; }
+        button:hover { background: var(--text-main); color: #000; }
+        button:active { transform: translateY(2px); }
+        button.secondary { background: transparent; border: 2px solid var(--border); color: var(--text-muted); }
+        button.secondary:hover { border-color: var(--primary); color: var(--text-main); }
+
+        .selector-label { text-align: left; font-size: 0.75rem; color: var(--primary); text-transform: uppercase; margin-bottom: 6px; letter-spacing: 1.5px; font-weight: bold; }
+        .track-grid, .vehicle-grid { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 15px; max-height: 130px; overflow-y: auto; padding-right: 5px; }
+        .vehicle-grid { grid-template-columns: 1fr 1fr; }
+        .select-btn { background: #10131c; border: 1px solid var(--border); padding: 8px 12px; font-size: 0.8rem; color: var(--text-main); text-align: left; display: flex; flex-direction: column; cursor: pointer; font-family: inherit; }
+        .select-btn.active { border-color: var(--primary); background: rgba(255, 69, 0, 0.1); }
+        .select-btn span { font-weight: bold; display: flex; justify-content: space-between; }
+        .select-btn span::before { content: "» "; color: var(--primary); }
+        .select-btn small { color: var(--text-muted); font-size: 0.7rem; margin-top: 2px; }
+        .select-btn:hover { border-color: var(--detail); }
+
+        /* HUD - lap and timer top, speedometer bottom-right */
+        #hud-top {
+            position: absolute; top: 20px; left: 20px; right: 20px;
+            display: none; justify-content: space-between;
+            pointer-events: none; z-index: 5;
+        }
+        #hud-bottom-right {
+            position: absolute; bottom: 24px; right: 24px;
+            display: none; pointer-events: auto; z-index: 5;
+        }
+
+        .hud-box { background: var(--panel); padding: 8px 16px; font-size: 1.1rem; font-weight: bold; border: 2px solid var(--border); color: var(--text-main); pointer-events: auto; }
+        .hud-box span { color: var(--primary); }
+
+        /* Speedometer widget */
+        #speedo-widget {
+            background: var(--panel);
+            border: 2px solid var(--detail);
+            padding: 10px 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 120px;
+        }
+        #speedo-value {
+            font-size: 2.4rem;
+            font-weight: 900;
+            color: var(--detail);
+            line-height: 1;
+            letter-spacing: -1px;
+        }
+        #speedo-unit {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        #speedo-bar {
+            width: 100%;
+            height: 3px;
+            background: var(--border);
+            margin-top: 6px;
+            position: relative;
+            overflow: hidden;
+        }
+        #speedo-bar-fill {
+            height: 100%;
+            background: var(--detail);
+            width: 0%;
+            transition: width 0.1s;
+        }
+        #cog-setup-btn {
+            background: rgba(20,22,31,0.95);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 6px 10px;
+            margin-top: 8px;
+            width: 100%;
+            font-size: 0.7rem;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        #cog-setup-btn:hover { background: var(--primary); color: #000; border-color: var(--primary); }
+        .cog-icon { display: inline-block; font-size: 14px; transition: transform 0.4s; }
+        #cog-setup-btn:hover .cog-icon { transform: rotate(60deg); }
+
+        #wrong-way, #hoop-splash {
+            position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+            font-size: 1.8rem; font-weight: bold; text-transform: uppercase;
+            display: none; background: var(--panel); padding: 10px 20px;
+            border: 2px dashed #ff3333; animation: flash 0.5s infinite alternate; z-index: 6;
+        }
+        #hoop-splash { color: var(--accent); border-color: var(--accent); animation: scaleUp 0.6s ease-out forwards; }
+        @keyframes flash { from { opacity: 1; } to { opacity: 0.3; } }
+        @keyframes scaleUp {
+            0% { transform: translateX(-50%) scale(0.5); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateX(-50%) scale(1.2); opacity: 0; }
+        }
+
+        .lb-container { max-height: 180px; overflow-y: auto; margin-bottom: 20px; text-align: left; }
+        .lb-entry { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px dashed var(--border); font-size: 0.95rem; }
+        .lb-entry:nth-child(odd) { background: rgba(255,255,255,0.02); }
+        .lb-entry span:nth-child(2) { color: var(--accent); font-weight: bold; }
+
+        #player-name-input { width: 100%; box-sizing: border-box; padding: 12px; margin-bottom: 15px; border-radius: 0; border: 2px solid var(--border); background: #0d0f14; color: white; font-size: 1.1rem; text-align: center; font-family: inherit; }
+        #player-name-input:focus { border-color: var(--primary); outline: none; }
+
+        #touch-controls { position: absolute; bottom: 20px; left: 0; width: 100%; height: 150px; display: none; pointer-events: none; z-index: 5; }
+        .touch-btn { position: absolute; width: 70px; height: 70px; background: rgba(20, 22, 31, 0.9); border: 2px solid var(--border); color: var(--text-main); pointer-events: auto; display: flex; justify-content: center; align-items: center; font-size: 20px; user-select: none; }
+        .touch-btn:active { background: var(--primary); color: #000; border-color: var(--primary); }
+        #btn-left { bottom: 20px; left: 20px; }
+        #btn-right { bottom: 20px; left: 100px; }
+        #btn-accel { bottom: 20px; right: 20px; width: 80px; height: 80px; }
+        #btn-brake { bottom: 20px; right: 110px; width: 65px; height: 65px; }
+        #btn-up-air { bottom: 95px; right: 20px; width: 55px; height: 55px; background: rgba(0, 255, 204, 0.15); border-color: var(--accent); }
+        #btn-down-air { bottom: 95px; right: 85px; width: 55px; height: 55px; background: rgba(0, 255, 204, 0.15); border-color: var(--accent); }
+
+        /* Loading Screen */
+        #loading {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #06070a;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 999; color: #fff;
+        }
+        #loader-canvas-wrap { position: relative; width: 140px; height: 140px; margin-bottom: 24px; }
+        #loader-svg { width: 140px; height: 140px; }
+        #loader-title { font-size: 1.6rem; letter-spacing: 8px; font-weight: 900; color: var(--primary); text-transform: uppercase; margin-bottom: 6px; }
+        #loader-text { color: var(--detail); font-size: 0.8rem; letter-spacing: 3px; margin-top: 8px; text-transform: uppercase; }
+        #loader-progress-track { width: 300px; max-width: 80vw; height: 2px; background: var(--border); margin-top: 18px; position: relative; overflow: hidden; }
+        #loader-progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s ease; }
+        .loader-status { font-size: 0.68rem; color: var(--text-muted); margin-top: 10px; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Screen -->
+    <div id="loading">
+        <div id="loader-canvas-wrap">
+            <svg id="loader-svg" viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+        <div id="loader-title">SPEED CIRCUIT</div>
+        <div id="loader-text">INITIALIZING SYSTEMS...</div>
+        <div id="loader-progress-track"><div id="loader-progress-fill"></div></div>
+        <div class="loader-status" id="loader-status-text">CORE STABLE // MEMORY SYNC OK</div>
+    </div>
+
+    <!-- UI Overlay -->
+    <div id="ui-layer">
+        <div id="screen-menu" class="screen active">
+            <div class="dash-header"><span>SYSTEM: NOMINAL</span><span>BAUD: 115200</span></div>
+            <h1>SPEED CIRCUIT</h1>
+            <p style="color: var(--text-muted); line-height: 1.5; margin-bottom: 25px; font-size: 0.85rem;">High-performance motorsport telemetry & sandbox. Configure parameters to initialize simulation loop.</p>
+            <button id="btn-play">Configure Sim</button>
+            <button id="btn-show-leaderboard" class="secondary">System Records</button>
+            <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 25px; border-top: 1px solid var(--border); padding-top: 15px; text-align: left;">
+                STEER: [A/D] [LEFT/RIGHT]<br>
+                ALTITUDE: [SPACE] TO TAKE OFF / [SHIFT] TO DESCEND
+            </p>
+        </div>
+
+        <div id="screen-tracks" class="screen">
+            <div class="dash-header"><span>STAGE SETUP</span><span>CPU_SYS: LOADED</span></div>
+            <h1>SETUP CONFIG</h1>
+            <div class="selector-label">1. Select Vehicle Core</div>
+            <div class="vehicle-grid">
+                <div class="select-btn select-vehicle active" data-vehicle="car"><span>SPORTS CAR</span><small>High grip & active aero</small></div>
+                <div class="select-btn select-vehicle" data-vehicle="bus"><span>METRO BUS</span><small>Passenger transit frame</small></div>
+                <div class="select-btn select-vehicle" data-vehicle="plane"><span>STUNT PLANE</span><small>Aerobatic bi-wing engine</small></div>
+                <div class="select-btn select-vehicle" data-vehicle="heli"><span>HELICOPTER</span><small>Dual-rotor VTOL system</small></div>
+            </div>
+            <div class="selector-label">2. Select Stage Track</div>
+            <div class="track-grid">
+                <button class="select-btn select-track active" data-track="0"><span>STAGE 01</span><small>Beginner Oval Circuit</small></button>
+                <button class="select-btn select-track" data-track="1"><span>STAGE 02</span><small>Over-Under Figure 8</small></button>
+                <button class="select-btn select-track" data-track="2"><span>STAGE 03</span><small>The ZigZag chicanes</small></button>
+                <button class="select-btn select-track" data-track="3"><span>STAGE 04</span><small>Mountain Hairpins</small></button>
+                <button class="select-btn select-track" data-track="4"><span>STAGE 05</span><small>Apex Pro Championship</small></button>
+            </div>
+            <div class="selector-label">3. Match Variables</div>
+            <div class="option-row">
+                <div class="option-label">CPU Rivals (Slower & Paced)</div>
+                <button class="telemetry-toggle active" id="btn-toggle-cpu">ENABLED</button>
+            </div>
+            <button id="btn-start-race" style="margin-top: 10px;">Launch Simulation</button>
+            <button id="btn-back-menu" class="secondary">Back</button>
+        </div>
+
+        <div id="screen-result" class="screen">
+            <div class="dash-header"><span>SIMULATION TERMINATED</span><span>STATUS: COMPLETE</span></div>
+            <h1>STAGE COMPLETE</h1>
+            <h2 id="final-time">00:00.00</h2>
+            <p id="new-record-msg" style="color: var(--accent); display: none;">New Telemetry Record!</p>
+            <div style="margin: 20px 0;">
+                <input type="text" id="player-name-input" placeholder="RACER NAME" maxlength="15">
+                <button id="btn-submit-score">Save Telemetry</button>
+            </div>
+            <button id="btn-retry" class="secondary">Retry Stage</button>
+            <button id="btn-menu-from-result" class="secondary">Main Menu</button>
+        </div>
+
+        <div id="screen-leaderboard" class="screen">
+            <div class="dash-header"><span>GLOBAL TELEMETRY ARCHIVE</span><span>FILTER: TOP 10</span></div>
+            <h1>STAGE RECORDS</h1>
+            <select id="lb-track-select" style="width: 100%; padding: 12px; margin-bottom: 15px; background: #0d0f14; color: white; border: 2px solid var(--border); font-family: inherit;">
+                <option value="0">STAGE 01 - Beginner Oval</option>
+                <option value="1">STAGE 02 - Figure 8</option>
+                <option value="2">STAGE 03 - The ZigZag</option>
+                <option value="3">STAGE 04 - Hairpins</option>
+                <option value="4">STAGE 05 - Pro Circuit</option>
+            </select>
+            <div class="lb-container" id="lb-list"><div style="text-align: center; color: var(--text-muted);">Loading records...</div></div>
+            <button id="btn-back-from-lb" class="secondary">Return</button>
+        </div>
+    </div>
+
+    <!-- Top HUD (lap + timer) -->
+    <div id="hud-top">
+        <div class="hud-box">LAP: <span id="hud-lap">1</span>/3</div>
+        <div class="hud-box" id="hud-time">00:00.00</div>
+    </div>
+
+    <!-- Bottom-right speedometer -->
+    <div id="hud-bottom-right">
+        <div id="speedo-widget">
+            <div id="speedo-value">0</div>
+            <div id="speedo-unit">MPH</div>
+            <div id="speedo-bar"><div id="speedo-bar-fill"></div></div>
+            <button id="cog-setup-btn">
+                <span class="cog-icon">⚙</span> SETUP
+            </button>
+        </div>
+    </div>
+
+    <div id="wrong-way">Wrong Way!</div>
+    <div id="hoop-splash">HOOP CLEARED!</div>
+
+    <!-- Touch Controls -->
+    <div id="touch-controls">
+        <div class="touch-btn" id="btn-left">◀</div>
+        <div class="touch-btn" id="btn-right">▶</div>
+        <div class="touch-btn" id="btn-brake">B</div>
+        <div class="touch-btn" id="btn-accel">A</div>
+        <div class="touch-btn" id="btn-up-air">▲ FLY</div>
+        <div class="touch-btn" id="btn-down-air">▼ LAND</div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js';
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ─── LOADING ANIMATION ───────────────────────────────────────────
+        const loaderSVG = document.getElementById('loader-svg');
+        const loaderText = document.getElementById('loader-text');
+        const loaderStatus = document.getElementById('loader-status-text');
+        const loaderProgressFill = document.getElementById('loader-progress-fill');
+
+        let loaderProgress = 0;
+        let loaderPhase = 0;
+
+        // Animated SVG loader phases
+        const loaderPhases = [
+            {
+                text: "CALIBRATING VEHICLE DYNAMICS...",
+                status: "SUSPENSION COILS // TYRE PRESSURE OK",
+                progress: 25,
+                svg: `
+                  <g>
+                    <!-- Outer ring -->
+                    <circle cx="70" cy="70" r="58" stroke="#1a1d28" stroke-width="4" fill="none"/>
+                    <circle cx="70" cy="70" r="58" stroke="#ff4500" stroke-width="4" fill="none"
+                      stroke-dasharray="80 284" stroke-linecap="round">
+                      <animateTransform attributeName="transform" type="rotate" from="0 70 70" to="360 70 70" dur="1.2s" repeatCount="indefinite"/>
+                    </circle>
+                    <!-- Wheel spokes -->
+                    <g transform="translate(70,70)">
+                      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="1.8s" repeatCount="indefinite" additive="sum"/>
+                      <line x1="0" y1="-40" x2="0" y2="40" stroke="#ff4500" stroke-width="3" opacity="0.7"/>
+                      <line x1="-40" y1="0" x2="40" y2="0" stroke="#ff4500" stroke-width="3" opacity="0.7"/>
+                      <line x1="-28" y1="-28" x2="28" y2="28" stroke="#ff4500" stroke-width="2" opacity="0.4"/>
+                      <line x1="-28" y1="28" x2="28" y2="-28" stroke="#ff4500" stroke-width="2" opacity="0.4"/>
+                      <circle cx="0" cy="0" r="10" fill="#ff4500"/>
+                      <circle cx="0" cy="0" r="6" fill="#06070a"/>
+                    </g>
+                    <!-- Rim detail -->
+                    <circle cx="70" cy="70" r="42" stroke="#ff4500" stroke-width="1.5" fill="none" opacity="0.3"
+                      stroke-dasharray="4 8"/>
+                  </g>`
+            },
+            {
+                text: "SYNCING ROTOR SYSTEMS...",
+                status: "BLADE BALANCE // RPM CALIBRATED",
+                progress: 55,
+                svg: `
+                  <g>
+                    <!-- Outer pulse ring -->
+                    <circle cx="70" cy="70" r="60" stroke="#00e5ff" stroke-width="1" fill="none" opacity="0.3">
+                      <animate attributeName="r" values="55;65;55" dur="1.5s" repeatCount="indefinite"/>
+                      <animate attributeName="opacity" values="0.5;0.1;0.5" dur="1.5s" repeatCount="indefinite"/>
+                    </circle>
+                    <!-- Main rotor blades -->
+                    <g transform="translate(70,70)">
+                      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="0.7s" repeatCount="indefinite" additive="sum"/>
+                      <!-- 4 blades -->
+                      <ellipse cx="0" cy="-30" rx="6" ry="28" fill="#00e5ff" opacity="0.9"/>
+                      <ellipse cx="0" cy="30" rx="6" ry="28" fill="#00e5ff" opacity="0.9"/>
+                      <ellipse cx="-30" cy="0" rx="28" ry="6" fill="#00e5ff" opacity="0.7"/>
+                      <ellipse cx="30" cy="0" rx="28" ry="6" fill="#00e5ff" opacity="0.7"/>
+                      <!-- Hub -->
+                      <circle cx="0" cy="0" r="9" fill="#00e5ff"/>
+                      <circle cx="0" cy="0" r="5" fill="#06070a"/>
+                    </g>
+                    <!-- Tail rotor smaller -->
+                    <g transform="translate(118,70)">
+                      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="0.35s" repeatCount="indefinite" additive="sum"/>
+                      <ellipse cx="0" cy="-10" rx="3" ry="10" fill="#00e5ff" opacity="0.6"/>
+                      <ellipse cx="0" cy="10" rx="3" ry="10" fill="#00e5ff" opacity="0.6"/>
+                      <circle cx="0" cy="0" r="4" fill="#00e5ff"/>
+                    </g>
+                  </g>`
+            },
+            {
+                text: "PRIMING PROPULSION CORES...",
+                status: "THRUST VECTOR // IGNITION SEQUENCE",
+                progress: 80,
+                svg: `
+                  <g>
+                    <!-- Propeller spin -->
+                    <g transform="translate(70,70)">
+                      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="0.45s" repeatCount="indefinite" additive="sum"/>
+                      <!-- 3 propeller blades -->
+                      <path d="M 0 0 Q -12 -18 -4 -52 Q 6 -36 0 0 Z" fill="#00ff88"/>
+                      <path d="M 0 0 Q 18 -8 44 14 Q 28 24 0 0 Z" fill="#00ff88"/>
+                      <path d="M 0 0 Q -8 20 -40 36 Q -34 14 0 0 Z" fill="#00ff88"/>
+                      <circle cx="0" cy="0" r="9" fill="#fff"/>
+                      <circle cx="0" cy="0" r="5" fill="#00ff88"/>
+                    </g>
+                    <!-- Speed blur rings -->
+                    <circle cx="70" cy="70" r="45" stroke="#00ff88" stroke-width="1.5" fill="none" stroke-dasharray="6 4" opacity="0.4">
+                      <animateTransform attributeName="transform" type="rotate" from="0 70 70" to="-360 70 70" dur="2s" repeatCount="indefinite"/>
+                    </circle>
+                    <circle cx="70" cy="70" r="58" stroke="#00ff88" stroke-width="1" fill="none" stroke-dasharray="3 8" opacity="0.25">
+                      <animateTransform attributeName="transform" type="rotate" from="0 70 70" to="360 70 70" dur="3s" repeatCount="indefinite"/>
+                    </circle>
+                  </g>`
+            },
+            {
+                text: "LAUNCHING SIMULATION...",
+                status: "ALL SYSTEMS GREEN // READY",
+                progress: 100,
+                svg: `
+                  <g>
+                    <circle cx="70" cy="70" r="55" stroke="#ff4500" stroke-width="3" fill="none"/>
+                    <path d="M 45 70 L 62 87 L 95 54" stroke="#00ff88" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <animate attributeName="stroke-dasharray" from="0 100" to="80 0" dur="0.4s" fill="freeze"/>
+                    </path>
+                  </g>`
+            }
+        ];
+
+        function advanceLoader() {
+            const phase = loaderPhases[loaderPhase];
+            loaderSVG.innerHTML = phase.svg;
+            loaderText.innerText = phase.text;
+            loaderStatus.innerText = phase.status;
+            loaderProgressFill.style.width = phase.progress + '%';
+            loaderPhase = (loaderPhase + 1) % loaderPhases.length;
+        }
+
+        advanceLoader();
+        const loaderInterval = setInterval(advanceLoader, 900);
+
+        // ─── FIREBASE ────────────────────────────────────────────────────
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'speed-circuit-default';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "mock-key", projectId: "mock-project" };
+        let app, auth, db, user, isOnline = false;
+
+        async function initFirebase() {
+            try {
+                if (firebaseConfig.apiKey !== "mock-key") {
+                    app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    user = auth.currentUser;
+                    isOnline = true;
+                }
+            } catch(e) { console.error("Firebase:", e); }
+            clearInterval(loaderInterval);
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        // ─── STAGE THEMES ─────────────────────────────────────────────
+        const STAGE_THEMES = [
+            { skyColor: 0x87CEEB, fogColor: 0x87CEEB, fogDensity: 0.002, grassColor: 0x4c9f50, buildingColors: [0x222633, 0x11131a, 0x2b3140], windowColor: 0x00ffcc, lightColor: 0xffffff, lightIntensity: 1.1, hoopColor: 0x00ffcc },
+            { skyColor: 0xfd5e53, fogColor: 0xfd5e53, fogDensity: 0.003, grassColor: 0x6e4e37, buildingColors: [0x421c1c, 0x261414, 0x3d271d], windowColor: 0xffaa00, lightColor: 0xffddaa, lightIntensity: 0.8, hoopColor: 0xff9900 },
+            { skyColor: 0x020308, fogColor: 0x080014, fogDensity: 0.004, grassColor: 0x110222, buildingColors: [0x080914, 0x120224, 0x031c26], windowColor: 0xff00ff, lightColor: 0x9900ff, lightIntensity: 0.5, hoopColor: 0x00ffff },
+            { skyColor: 0xd3dbdb, fogColor: 0xd3dbdb, fogDensity: 0.015, grassColor: 0x2c4c38, buildingColors: [0x422f25, 0x2e2019, 0x4f443b], windowColor: 0xffeaad, lightColor: 0xffffff, lightIntensity: 0.6, hoopColor: 0xff4500 },
+            { skyColor: 0x1a2130, fogColor: 0x1a2130, fogDensity: 0.005, grassColor: 0x1e2e28, buildingColors: [0x0f111a, 0x181e29, 0x0b0d12], windowColor: 0x00ff88, lightColor: 0xaaffdd, lightIntensity: 0.7, hoopColor: 0xff0055 }
+        ];
+
+        // ─── GAME STATE ───────────────────────────────────────────────
+        const GAME_STATES = { MENU: 0, PLAYING: 1, RESULT: 2 };
+        let currentState = GAME_STATES.MENU;
+        let currentTrackIndex = 0;
+        let currentVehicleType = 'car';
+        let enableCpuOpponents = true;
+        const TOTAL_LAPS = 3;
+
+        let scene, camera, renderer, dirLight;
+        let vehicleGroup, vehicleChassis;
+        let propellerMesh, mainRotorMesh, tailRotorMesh;
+        let wheelMeshes = [];
+        let trackMesh, finishLineMesh, trackCurve;
+        let clock = new THREE.Clock();
+        let exhaustFireL, exhaustFireR;
+        let leftBrakeCalipers = [], rightBrakeCalipers = [];
+
+        let speed = 0, maxSpeed = 3.6, acceleration = 0.024, braking = 0.06, friction = 0.99, offTrackFriction = 0.92;
+        let altitude = 0.05, targetAltitude = 0.05, isFlying = false;
+        let currentLap = 1, raceTime = 0, isRacing = false;
+        let checkPointsPassed = 0, totalCheckpoints = 10, trackPoints = [], playerT = 0;
+        let cpuRacerGroups = [], cpuRacerData = [];
+        let aerialHoops = [], clearedHoopIndices = new Set();
+
+        const keys = { w:false,a:false,s:false,d:false,up:false,down:false,left:false,right:false,space:false,shift:false };
+
+        const VEHICLE_CONFIGS = {
+            car:   { maxSpeed:4.5,  acceleration:0.028, braking:0.08, steerFactor:1.0 },
+            bus:   { maxSpeed:2.6,  acceleration:0.015, braking:0.05, steerFactor:1.5 },
+            plane: { maxSpeed:3.2,  acceleration:0.020, braking:0.06, steerFactor:1.0 },
+            heli:  { maxSpeed:2.6,  acceleration:0.016, braking:0.05, steerFactor:1.1 }
+        };
+
+        const TRACK_DATA = [
+            [ [0,0,50],[50,0,50],[100,0,0],[50,0,-50],[0,0,-50],[-50,0,0] ],
+            [ [0,0,80],[60,0,40],[10,0,-10],[-50,0,-60],[0,0,-100],[50,0,-60],[-10,0,-10],[-60,0,40] ],
+            [ [0,0,60],[40,0,20],[-30,0,-20],[40,0,-60],[0,0,-100],[-60,0,-40] ],
+            [ [0,0,50],[40,0,50],[40,0,0],[-40,0,0],[-40,0,-50],[40,0,-50],[60,0,-20],[60,0,80],[-20,0,80] ],
+            [ [0,0,100],[80,0,100],[120,0,40],[60,0,0],[100,0,-60],[0,0,-120],[-80,0,-80],[-40,0,-20],[-100,0,40] ]
+        ];
+
+        // ─── UI LOGIC ────────────────────────────────────────────────
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            if (id) document.getElementById(id).classList.add('active');
+        }
+
+        document.getElementById('btn-play').onclick = () => showScreen('screen-tracks');
+        document.getElementById('btn-back-menu').onclick = () => showScreen('screen-menu');
+        document.getElementById('btn-show-leaderboard').onclick = () => { showScreen('screen-leaderboard'); loadLeaderboard(document.getElementById('lb-track-select').value); };
+        document.getElementById('btn-back-from-lb').onclick = () => showScreen('screen-menu');
+        document.getElementById('btn-retry').onclick = () => showScreen('screen-tracks');
+        document.getElementById('btn-menu-from-result').onclick = () => showScreen('screen-menu');
+        document.getElementById('lb-track-select').onchange = (e) => loadLeaderboard(e.target.value);
+
+        // Cog setup button
+        document.getElementById('cog-setup-btn').onclick = () => {
+            isRacing = false;
+            document.getElementById('hud-top').style.display = 'none';
+            document.getElementById('hud-bottom-right').style.display = 'none';
+            showScreen('screen-tracks');
+        };
+
+        document.querySelectorAll('.select-vehicle').forEach(btn => {
+            btn.onclick = () => { document.querySelectorAll('.select-vehicle').forEach(b => b.classList.remove('active')); btn.classList.add('active'); currentVehicleType = btn.getAttribute('data-vehicle'); };
+        });
+        document.querySelectorAll('.select-track').forEach(btn => {
+            btn.onclick = () => { document.querySelectorAll('.select-track').forEach(b => b.classList.remove('active')); btn.classList.add('active'); currentTrackIndex = parseInt(btn.getAttribute('data-track')); };
+        });
+
+        const cpuToggleBtn = document.getElementById('btn-toggle-cpu');
+        cpuToggleBtn.onclick = () => {
+            enableCpuOpponents = !enableCpuOpponents;
+            cpuToggleBtn.classList.toggle('active', enableCpuOpponents);
+            cpuToggleBtn.innerText = enableCpuOpponents ? "ENABLED" : "DISABLED";
+        };
+
+        document.getElementById('btn-start-race').onclick = () => startGame();
+
+        function formatTime(t) {
+            let m = Math.floor(t/60), s = Math.floor(t%60), ms = Math.floor((t*100)%100);
+            return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}.${ms.toString().padStart(2,'0')}`;
+        }
+
+        // ─── INPUT ───────────────────────────────────────────────────
+        window.addEventListener('keydown', e => {
+            const k = e.key.toLowerCase();
+            if(k==='w'||e.key==='ArrowUp') keys.up=true;
+            if(k==='s'||e.key==='ArrowDown') keys.down=true;
+            if(k==='a'||e.key==='ArrowLeft') keys.left=true;
+            if(k==='d'||e.key==='ArrowRight') keys.right=true;
+            if(e.code==='Space'||e.key===' ') keys.space=true;
+            if(e.key==='Shift') keys.shift=true;
+        });
+        window.addEventListener('keyup', e => {
+            const k = e.key.toLowerCase();
+            if(k==='w'||e.key==='ArrowUp') keys.up=false;
+            if(k==='s'||e.key==='ArrowDown') keys.down=false;
+            if(k==='a'||e.key==='ArrowLeft') keys.left=false;
+            if(k==='d'||e.key==='ArrowRight') keys.right=false;
+            if(e.code==='Space'||e.key===' ') keys.space=false;
+            if(e.key==='Shift') keys.shift=false;
+        });
+
+        const addTouch = (elem, key) => {
+            elem.addEventListener('touchstart', e => { e.preventDefault(); keys[key]=true; });
+            elem.addEventListener('touchend', e => { e.preventDefault(); keys[key]=false; });
+            elem.addEventListener('mousedown', () => keys[key]=true);
+            elem.addEventListener('mouseup', () => keys[key]=false);
+            elem.addEventListener('mouseleave', () => keys[key]=false);
+        };
+        addTouch(document.getElementById('btn-left'), 'left');
+        addTouch(document.getElementById('btn-right'), 'right');
+        addTouch(document.getElementById('btn-accel'), 'up');
+        addTouch(document.getElementById('btn-brake'), 'down');
+        addTouch(document.getElementById('btn-up-air'), 'space');
+        addTouch(document.getElementById('btn-down-air'), 'shift');
+
+        // ─── THREE.JS SETUP ──────────────────────────────────────────
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+            scene.fog = new THREE.FogExp2(0x87CEEB, 0.0025);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+            renderer.domElement.id = 'game-canvas';
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+            scene.add(ambientLight);
+
+            dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
+            dirLight.position.set(150, 250, 100);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.camera.near = 0.5;
+            dirLight.shadow.camera.far = 600;
+            const d = 200;
+            dirLight.shadow.camera.left = -d; dirLight.shadow.camera.right = d;
+            dirLight.shadow.camera.top = d; dirLight.shadow.camera.bottom = -d;
+            scene.add(dirLight);
+
+            const groundGeo = new THREE.PlaneGeometry(2000, 2000);
+            const groundMat = new THREE.MeshPhongMaterial({ color: 0x4c9f50, side: THREE.DoubleSide });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI/2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            createDriftingClouds();
+
+            vehicleGroup = new THREE.Group();
+            scene.add(vehicleGroup);
+
+            rebuildVehicleModel();
+            buildTrack(0);
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth/window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            renderer.setAnimationLoop(animate);
+        }
+
+        // ─── CLOUDS ──────────────────────────────────────────────────
+        function createDriftingClouds() {
+            for (let i = 0; i < 25; i++) {
+                const cloud = new THREE.Group();
+                cloud.name = 'env';
+                const sphereGeom = new THREE.SphereGeometry(6 + Math.random()*6, 8, 8);
+                const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+                for (let j = 0; j < 3+Math.floor(Math.random()*4); j++) {
+                    const mesh = new THREE.Mesh(sphereGeom, cloudMat);
+                    mesh.position.set((j-2)*6, (Math.random()-0.5)*3, (Math.random()-0.5)*4);
+                    cloud.add(mesh);
+                }
+                cloud.position.set((Math.random()-0.5)*1200, 60+Math.random()*40, (Math.random()-0.5)*1200);
+                scene.add(cloud);
+            }
+        }
+
+        // ─── HELPERS ─────────────────────────────────────────────────
+        function mat(color, shininess=80, emissive=0) {
+            return new THREE.MeshPhongMaterial({ color, shininess, emissive });
+        }
+        function box(w,h,d) { return new THREE.BoxGeometry(w,h,d); }
+        function cyl(rT,rB,h,seg=16) { return new THREE.CylinderGeometry(rT,rB,h,seg); }
+        function sphere(r,seg=16) { return new THREE.SphereGeometry(r,seg,seg); }
+        function addMesh(parent, geo, material, px=0,py=0,pz=0, rx=0,ry=0,rz=0, sx=1,sy=1,sz=1) {
+            const m = new THREE.Mesh(geo, material);
+            m.position.set(px,py,pz);
+            m.rotation.set(rx,ry,rz);
+            m.scale.set(sx,sy,sz);
+            m.castShadow = true;
+            parent.add(m);
+            return m;
+        }
+
+        // ─── VEHICLE BUILDER ─────────────────────────────────────────
+        function rebuildVehicleModel() {
+            while(vehicleGroup.children.length > 0) vehicleGroup.remove(vehicleGroup.children[0]);
+            vehicleChassis = new THREE.Group();
+            vehicleGroup.add(vehicleChassis);
+            propellerMesh = mainRotorMesh = tailRotorMesh = null;
+            exhaustFireL = exhaustFireR = null;
+            leftBrakeCalipers = []; rightBrakeCalipers = [];
+            wheelMeshes = [];
+
+            const cfg = VEHICLE_CONFIGS[currentVehicleType];
+            maxSpeed = cfg.maxSpeed; acceleration = cfg.acceleration; braking = cfg.braking;
+
+            if (currentVehicleType === 'car') buildDetailedCar(vehicleChassis, vehicleGroup);
+            else if (currentVehicleType === 'bus') buildDetailedBus(vehicleChassis, vehicleGroup);
+            else if (currentVehicleType === 'plane') buildDetailedPlane(vehicleChassis, vehicleGroup);
+            else if (currentVehicleType === 'heli') buildDetailedHelicopter(vehicleChassis, vehicleGroup);
+        }
+
+        // ════════════════════════════════════════════
+        // DETAILED SPORTS CAR - Ferrari-inspired GT
+        // ════════════════════════════════════════════
+        function buildDetailedCar(chassis, root) {
+            const bodyRed = mat(0xcc1100, 140);
+            const bodyRedDark = mat(0x991100, 100);
+            const carbon = mat(0x111315, 60);
+            const chrome = mat(0xdddddd, 200);
+            const glass = new THREE.MeshPhongMaterial({ color:0x050a12, shininess:300, transparent:true, opacity:0.78 });
+            const rubber = mat(0x0d0d0d, 10);
+            const emissRed = new THREE.MeshPhongMaterial({ color:0xff0000, emissive:0xaa0000, shininess:80 });
+            const emissWhite = new THREE.MeshPhongMaterial({ color:0xffffff, emissive:0x00eecc, shininess:200 });
+            const emissYellow = new THREE.MeshPhongMaterial({ color:0xffaa00, emissive:0xff6600, shininess:150 });
+
+            // ── Main body shell (low slung wedge profile)
+            // Nose
+            addMesh(chassis, box(1.7,0.28,1.0), bodyRed, 0,0.28,1.6);
+            // Mid section
+            addMesh(chassis, box(1.8,0.4,2.2), bodyRed, 0,0.32,0.2);
+            // Rear haunch
+            addMesh(chassis, box(1.85,0.5,1.6), bodyRedDark, 0,0.38,-1.2);
+            // Undertray
+            addMesh(chassis, box(1.6,0.06,4.0), carbon, 0,0.06,0.1);
+
+            // ── Passenger cell / cockpit shell
+            addMesh(chassis, box(1.2,0.5,1.6), bodyRed, 0,0.72,-0.15);
+            // Windscreen frame
+            addMesh(chassis, box(1.22,0.06,0.06), carbon, 0,0.94,0.64);
+            // Windscreen glass
+            addMesh(chassis, box(1.1,0.44,0.08), glass, 0,0.76,0.64, -0.32,0,0);
+            // Side glass L
+            addMesh(chassis, box(0.04,0.34,1.0), glass, -0.62,0.72,-0.1);
+            // Side glass R
+            addMesh(chassis, box(0.04,0.34,1.0), glass, 0.62,0.72,-0.1);
+            // Rear screen
+            addMesh(chassis, box(1.0,0.3,0.06), glass, 0,0.7,-0.94, 0.28,0,0);
+
+            // ── Roof
+            addMesh(chassis, box(1.15,0.08,1.2), bodyRed, 0,0.98,-0.2);
+
+            // ── Front splitter / diffuser
+            addMesh(chassis, box(1.9,0.04,0.7), carbon, 0,0.06,1.95);
+            addMesh(chassis, box(0.5,0.18,0.1), carbon, -0.6,0.14,1.95);
+            addMesh(chassis, box(0.5,0.18,0.1), carbon, 0.6,0.14,1.95);
+
+            // ── Side skirts
+            addMesh(chassis, box(0.08,0.2,3.2), carbon, -0.92,0.16,0.0);
+            addMesh(chassis, box(0.08,0.2,3.2), carbon, 0.92,0.16,0.0);
+
+            // ── Hood vents / louvres
+            for(let i=0;i<3;i++) {
+                addMesh(chassis, box(0.5,0.04,0.06), carbon, 0,0.44,1.2+i*0.14);
+            }
+
+            // ── Rear wing (GT3-style high downforce)
+            addMesh(chassis, box(1.8,0.06,0.55), bodyRed, 0,1.08,-1.75);      // Main plane
+            addMesh(chassis, box(1.85,0.04,0.25), bodyRedDark, 0,0.88,-1.65); // Gurney flap base
+            addMesh(chassis, box(0.08,0.5,0.18), carbon, -0.86,0.78,-1.75);   // Strut L
+            addMesh(chassis, box(0.08,0.5,0.18), carbon, 0.86,0.78,-1.75);    // Strut R
+            addMesh(chassis, box(0.26,0.34,0.04), carbon, -0.86,0.94,-1.86);  // End plate L
+            addMesh(chassis, box(0.26,0.34,0.04), carbon, 0.86,0.94,-1.86);   // End plate R
+
+            // ── Rear diffuser fins
+            for(let i=-2;i<=2;i++) addMesh(chassis, box(0.04,0.2,0.5), carbon, i*0.28,0.12,-1.8);
+
+            // ── Door handles
+            addMesh(chassis, box(0.18,0.04,0.06), chrome, -0.93,0.64,0.1);
+            addMesh(chassis, box(0.18,0.04,0.06), chrome, 0.93,0.64,0.1);
+
+            // ── Wing mirrors
+            addMesh(chassis, box(0.04,0.1,0.22), bodyRed, -0.95,0.88,0.52);
+            addMesh(chassis, box(0.04,0.1,0.22), bodyRed, 0.95,0.88,0.52);
+            addMesh(chassis, box(0.12,0.06,0.18), carbon, -0.97,0.92,0.52);
+            addMesh(chassis, box(0.12,0.06,0.18), carbon, 0.97,0.92,0.52);
+
+            // ── Headlights (quad LED)
+            for(let x of [-0.45,0.45]) {
+                addMesh(chassis, box(0.28,0.08,0.04), emissWhite, x,0.34,2.02);
+                addMesh(chassis, box(0.12,0.06,0.04), emissYellow, x+(x>0?0.2:-0.2),0.38,2.02);
+            }
+            // ── DRL strip
+            addMesh(chassis, box(1.2,0.03,0.04), emissWhite, 0,0.26,2.02);
+
+            // ── Tail lights (full-width LED bar)
+            addMesh(chassis, box(1.6,0.08,0.04), emissRed, 0,0.44,-2.02);
+            addMesh(chassis, box(0.3,0.14,0.04), emissRed, -0.72,0.4,-2.02);
+            addMesh(chassis, box(0.3,0.14,0.04), emissRed, 0.72,0.4,-2.02);
+
+            // ── Exhaust pipes (dual centre-exit)
+            const exGeo = cyl(0.07,0.085,0.5,12); exGeo.rotateX(Math.PI/2);
+            const exMat = mat(0x333333, 80);
+            addMesh(chassis, exGeo, exMat, -0.22,0.18,-2.05);
+            addMesh(chassis, exGeo, exMat, 0.22,0.18,-2.05);
+
+            // Dynamic exhaust fire
+            const fireGeo = new THREE.ConeGeometry(0.06, 0.7, 8); fireGeo.rotateX(-Math.PI/2);
+            const fireMat = new THREE.MeshBasicMaterial({ color:0xff6600, transparent:true, opacity:0.85 });
+            exhaustFireL = new THREE.Mesh(fireGeo, fireMat);
+            exhaustFireL.position.set(-0.22,0.18,-2.4);
+            exhaustFireL.scale.set(0.01,0.01,0.01);
+            chassis.add(exhaustFireL);
+            exhaustFireR = exhaustFireL.clone();
+            exhaustFireR.position.x = 0.22;
+            chassis.add(exhaustFireR);
+
+            // ── Dashboard / interior
+            addMesh(chassis, box(0.9,0.18,0.06), carbon, 0,0.52,0.52);
+            addMesh(chassis, box(0.3,0.12,0.04), new THREE.MeshBasicMaterial({color:0x00e5ff}), 0,0.56,0.55);
+            addMesh(chassis, sphere(0.08,8), mat(0x222), 0,0.5,0.3); // gear knob
+
+            // ── Wheels (detailed 5-spoke alloys with tyre sidewalls)
+            const positions = [[-0.97,0.36,1.3],[0.97,0.36,1.3],[-0.97,0.36,-1.15],[0.97,0.36,-1.15]];
+            addDetailedWheels(root, positions, 0.36, 0.3, true);
+        }
+
+        // ════════════════════════════════════════════
+        // DETAILED METRO BUS - London Routemaster style
+        // ════════════════════════════════════════════
+        function buildDetailedBus(chassis, root) {
+            const busRed = mat(0xcc0000, 80);
+            const busDark = mat(0x880000, 60);
+            const cream = mat(0xfff5e0, 40);
+            const glass = new THREE.MeshPhongMaterial({ color:0x0a1520, shininess:200, transparent:true, opacity:0.82 });
+            const chrome = mat(0xbbbbbb, 180);
+            const rubber = mat(0x111111, 10);
+            const emissW = new THREE.MeshPhongMaterial({ color:0xffffff, emissive:0xdddddd });
+            const emissR = new THREE.MeshPhongMaterial({ color:0xff0000, emissive:0xaa0000 });
+            const emissY = new THREE.MeshPhongMaterial({ color:0xffcc00, emissive:0xcc8800 });
+            const panelMat = mat(0x1a0000, 20);
+
+            // ── Main box body (double-decker)
+            // Lower deck
+            addMesh(chassis, box(2.2,1.35,6.8), busRed, 0,1.0,0);
+            // Upper deck
+            addMesh(chassis, box(2.2,1.2,6.4), busRed, 0,2.42,0.2);
+            // Roof
+            addMesh(chassis, box(2.22,0.12,6.5), busDark, 0,3.06,0.2);
+            // Rounded front cap upper
+            addMesh(chassis, box(2.2,0.12,0.5), busDark, 0,3.0,-3.55, 0.2,0,0);
+
+            // ── Undercarriage trim
+            addMesh(chassis, box(2.24,0.22,6.85), panelMat, 0,0.25,0);
+            addMesh(chassis, box(2.26,0.06,6.86), cream, 0,0.12,0); // skirt stripe
+
+            // ── Cream stripe band between decks
+            addMesh(chassis, box(2.22,0.18,6.82), cream, 0,1.75,0);
+
+            // ── Front face details
+            // Lower front glass
+            addMesh(chassis, box(1.9,0.8,0.06), glass, 0,1.0,3.45, 0,0,0);
+            // Upper front glass
+            addMesh(chassis, box(1.85,0.9,0.06), glass, 0,2.4,3.55, -0.06,0,0);
+            // Front chrome bumper
+            addMesh(chassis, box(2.24,0.18,0.1), chrome, 0,0.42,3.5);
+            addMesh(chassis, box(2.24,0.06,0.12), chrome, 0,0.6,3.5);
+            // Route number box
+            addMesh(chassis, box(0.7,0.3,0.08), new THREE.MeshBasicMaterial({color:0xffffff}), 0,2.92,3.52);
+            addMesh(chassis, box(0.55,0.2,0.06), new THREE.MeshBasicMaterial({color:0x000000}), 0,2.92,3.56);
+            // Destination board
+            addMesh(chassis, box(1.3,0.22,0.08), new THREE.MeshBasicMaterial({color:0x000000}), 0,2.62,3.56);
+            addMesh(chassis, box(1.1,0.12,0.06), new THREE.MeshBasicMaterial({color:0xff4500}), 0,2.62,3.60);
+
+            // ── Side windows upper deck (L & R)
+            for(let z=-2.4; z<=2.4; z+=1.2) {
+                addMesh(chassis, box(0.06,0.55,0.9), glass, -1.12,2.42,z);
+                addMesh(chassis, box(0.06,0.55,0.9), glass, 1.12,2.42,z);
+            }
+            // Side windows lower deck
+            for(let z=-2.2; z<=2.6; z+=1.3) {
+                addMesh(chassis, box(0.06,0.5,0.9), glass, -1.12,1.04,z);
+                addMesh(chassis, box(0.06,0.5,0.9), glass, 1.12,1.04,z);
+            }
+
+            // ── Window chrome frames
+            for(let z=-2.4; z<=2.4; z+=1.2) {
+                addMesh(chassis, box(0.05,0.58,0.94), chrome, -1.115,2.42,z, 0,0,0, 1,1,1);
+            }
+
+            // ── Rear face
+            addMesh(chassis, box(1.8,0.7,0.06), glass, 0,2.42,-3.45);
+            addMesh(chassis, box(1.6,0.5,0.06), glass, 0,0.9,-3.45);
+            // Open platform (classic Routemaster open rear)
+            addMesh(chassis, box(1.0,1.2,0.6), busDark, 0.6,0.75,-3.72);
+            addMesh(chassis, box(0.06,1.2,0.65), chrome, 1.0,0.75,-3.72); // pole
+
+            // ── Headlights
+            addMesh(chassis, box(0.36,0.2,0.06), emissW, -0.72,0.8,3.52);
+            addMesh(chassis, box(0.36,0.2,0.06), emissW, 0.72,0.8,3.52);
+            addMesh(chassis, box(0.2,0.12,0.06), emissY, -0.72,0.6,3.52); // indicator
+            addMesh(chassis, box(0.2,0.12,0.06), emissY, 0.72,0.6,3.52);
+            // ── Tail lights
+            addMesh(chassis, box(0.28,0.4,0.06), emissR, -0.9,0.9,-3.46);
+            addMesh(chassis, box(0.28,0.4,0.06), emissR, 0.9,0.9,-3.46);
+            addMesh(chassis, box(0.3,0.18,0.06), emissY, -0.9,0.6,-3.46);
+            addMesh(chassis, box(0.3,0.18,0.06), emissY, 0.9,0.6,-3.46);
+
+            // ── Roof details (ventilators)
+            for(let z=-2;z<=2;z+=1.4) {
+                addMesh(chassis, box(0.5,0.1,0.3), busDark, 0,3.13,z);
+            }
+            // Ad panel on side
+            addMesh(chassis, box(0.04,0.8,3.2), new THREE.MeshBasicMaterial({color:0xffcc00}), -1.12,1.76,-0.3);
+            addMesh(chassis, box(0.04,0.8,3.2), new THREE.MeshBasicMaterial({color:0xffcc00}), 1.12,1.76,-0.3);
+
+            // ── Exhaust
+            const exGeo2 = cyl(0.1,0.12,0.7,10); exGeo2.rotateX(Math.PI/2);
+            addMesh(chassis, exGeo2, mat(0x333333,60), 0.8,0.36,-3.5);
+
+            // ── Wheels (6-wheel bus layout)
+            const busWheelPos = [[-1.15,0.46,2.4],[1.15,0.46,2.4],[-1.15,0.46,-0.6],[1.15,0.46,-0.6],[-1.15,0.46,-2.2],[1.15,0.46,-2.2]];
+            addDetailedWheels(root, busWheelPos, 0.46, 0.45, false);
+        }
+
+        // ════════════════════════════════════════════
+        // DETAILED STUNT PLANE - Extra330 aerobatic
+        // ════════════════════════════════════════════
+        function buildDetailedPlane(chassis, root) {
+            const planeWhite = mat(0xf0f0f0, 120);
+            const planeRed = mat(0xff2200, 140);
+            const planeBlue = mat(0x0033cc, 120);
+            const carbon = mat(0x1a1a1a, 60);
+            const chrome = mat(0xcccccc, 200);
+            const glass = new THREE.MeshPhongMaterial({ color:0x0a1a30, shininess:280, transparent:true, opacity:0.75 });
+            const emissG = new THREE.MeshPhongMaterial({ color:0x00ff44, emissive:0x00aa22 });
+            const emissR = new THREE.MeshPhongMaterial({ color:0xff0000, emissive:0xaa0000 });
+
+            // ── Fuselage (tapered cylinder assembly)
+            const fuseGeo = cyl(0.42,0.14,5.5,16); fuseGeo.rotateX(Math.PI/2);
+            addMesh(chassis, fuseGeo, planeWhite, 0,0.55,0);
+            // Fuse belly flat
+            addMesh(chassis, box(0.7,0.08,5.2), carbon, 0,0.22,0);
+            // Nose cone
+            const noseGeo = new THREE.ConeGeometry(0.42,0.9,16); noseGeo.rotateX(Math.PI/2);
+            addMesh(chassis, noseGeo, carbon, 0,0.55,3.15);
+            // Cowling ring
+            const cowlGeo = cyl(0.48,0.48,0.15,20);
+            addMesh(chassis, cowlGeo, chrome, 0,0.55,2.7, Math.PI/2,0,0);
+            // Engine cylinders (radial, 6 around nose)
+            for(let i=0;i<6;i++) {
+                const angle = (i/6)*Math.PI*2;
+                const cylGeo = cyl(0.07,0.07,0.5,8);
+                const cx = Math.cos(angle)*0.36, cy = Math.sin(angle)*0.36;
+                addMesh(chassis, cylGeo, chrome, cx,0.55+cy,2.55, 0,0,Math.PI/2);
+            }
+
+            // ── Top wing (full wingspan, thicker for realism)
+            const topWingGeo = box(7.8,0.1,1.4);
+            addMesh(chassis, topWingGeo, planeWhite, 0,1.05,0.3);
+            // Wing spars and ribs visible on top
+            for(let x=-3;x<=3;x+=1.2) {
+                addMesh(chassis, box(0.04,0.08,1.38), carbon, x,1.08,0.3);
+            }
+            // Ailerons top (red stripe)
+            addMesh(chassis, box(1.8,0.1,0.35), planeRed, -3.0,1.05,0.55);
+            addMesh(chassis, box(1.8,0.1,0.35), planeRed, 3.0,1.05,0.55);
+
+            // ── Bottom wing
+            const botWingGeo = box(7.0,0.08,1.2);
+            addMesh(chassis, botWingGeo, planeWhite, 0,0.28,0.4);
+            addMesh(chassis, box(1.5,0.08,0.3), planeBlue, -2.7,0.28,0.55);
+            addMesh(chassis, box(1.5,0.08,0.3), planeBlue, 2.7,0.28,0.55);
+
+            // ── Interplane struts (4 total, angled N-strut)
+            const strutMat = mat(0xaaaaaa, 120);
+            for(let x of [-2.5,2.5]) {
+                const sGeo = cyl(0.04,0.04,0.9,8);
+                addMesh(chassis, sGeo, strutMat, x,0.65,0.25, 0,0,0.18*(x>0?1:-1));
+                addMesh(chassis, sGeo, strutMat, x,0.65,0.6, 0,0,-0.18*(x>0?1:-1));
+            }
+
+            // ── Tail assembly
+            // Horizontal stab
+            addMesh(chassis, box(2.8,0.06,0.65), planeWhite, 0,0.55,-2.55);
+            addMesh(chassis, box(0.8,0.06,0.28), planeRed, -1.1,0.55,-2.78);
+            addMesh(chassis, box(0.8,0.06,0.28), planeRed, 1.1,0.55,-2.78);
+            // Vertical fin
+            addMesh(chassis, box(0.08,1.2,0.8), planeWhite, 0,1.1,-2.4);
+            addMesh(chassis, box(0.08,0.55,0.36), planeRed, 0,0.7,-2.75);
+            // Rudder hinge strip
+            addMesh(chassis, box(0.06,0.55,0.04), chrome, 0,1.1,-2.78);
+
+            // ── Bubble canopy (detailed frame)
+            const bubGeo = new THREE.SphereGeometry(0.38,16,10,0,Math.PI*2,0,Math.PI*0.7);
+            const bub = new THREE.Mesh(bubGeo, glass);
+            bub.position.set(0,1.0,0.4); bub.scale.set(1,1,1.7);
+            chassis.add(bub);
+            // Canopy frame strips
+            addMesh(chassis, box(0.04,0.06,0.84), carbon, 0,1.08,0.4, -0.28,0,0);
+            addMesh(chassis, box(0.04,0.5,0.04), carbon, 0,0.92,0.4);
+
+            // ── Cockpit interior
+            addMesh(chassis, box(0.5,0.16,0.06), carbon, 0,0.62,0.2);   // instrument panel
+            addMesh(chassis, box(0.2,0.1,0.04), new THREE.MeshBasicMaterial({color:0x00e5ff}), 0,0.66,0.22);
+            addMesh(chassis, sphere(0.06,8), chrome, 0,0.62,-0.2); // stick
+            // Harness straps
+            addMesh(chassis, box(0.06,0.24,0.04), mat(0xff4400,40), -0.12,0.7,0.1, 0.3,0,0);
+            addMesh(chassis, box(0.06,0.24,0.04), mat(0xff4400,40), 0.12,0.7,0.1, 0.3,0,0);
+
+            // ── Wingtip navigation lights
+            addMesh(chassis, sphere(0.1,8), emissR, -3.9,1.05,0.3);
+            addMesh(chassis, sphere(0.1,8), emissG, 3.9,1.05,0.3);
+
+            // ── Exhaust stacks (6 short stacks on cowling)
+            const stackGeo = cyl(0.05,0.04,0.3,8); stackGeo.rotateX(Math.PI/2);
+            for(let i=0;i<3;i++) {
+                addMesh(chassis, stackGeo, carbon, -0.28,(0.28+i*0.2),2.62);
+                addMesh(chassis, stackGeo, carbon, 0.28,(0.28+i*0.2),2.62);
+            }
+
+            // ── Propeller assembly
+            const localPropeller = new THREE.Group();
+            localPropeller.position.set(0,0.55,2.85);
+
+            const hubGeo = cyl(0.1,0.14,0.2,16); hubGeo.rotateX(Math.PI/2);
+            localPropeller.add(new THREE.Mesh(hubGeo, chrome));
+
+            // 3-blade propeller, each blade tapers
+            for(let b=0;b<3;b++) {
+                const angle = (b/3)*Math.PI*2;
+                const bladeGeo = box(0.18,1.6,0.05);
+                const blade = new THREE.Mesh(bladeGeo, carbon);
+                blade.position.set(Math.cos(angle)*0.8, Math.sin(angle)*0.8, 0);
+                blade.rotation.z = angle + 0.1;
+                blade.rotation.y = 0.3; // pitch
+                localPropeller.add(blade);
+            }
+
+            // Spinner cone
+            const spinnerGeo = new THREE.ConeGeometry(0.14,0.4,12); spinnerGeo.rotateX(Math.PI/2);
+            localPropeller.add(new THREE.Mesh(spinnerGeo, chrome));
+
+            chassis.add(localPropeller);
+            propellerMesh = localPropeller;
+
+            // ── Landing gear (detailed struts with fairings)
+            for(let side of [-1,1]) {
+                const strutGeo = cyl(0.04,0.06,0.6,8);
+                const strut = addMesh(chassis, strutGeo, chrome, side*0.72,0.2,1.2, 0,0,side*0.2);
+                const fairingGeo = box(0.22,0.38,0.18);
+                addMesh(chassis, fairingGeo, planeWhite, side*0.78,0.22,1.2);
+            }
+            addDetailedWheels(root, [[-0.72,0.1,1.2],[0.72,0.1,1.2],[0,0.06,-2.0]], 0.18, 0.12, false);
+        }
+
+        // ════════════════════════════════════════════
+        // DETAILED HELICOPTER - Military UH-60 style
+        // ════════════════════════════════════════════
+        function buildDetailedHelicopter(chassis, root) {
+            const heliGreen = mat(0x3a4d3c, 60);
+            const heliDark = mat(0x263028, 40);
+            const metal = mat(0x2a2a2a, 100);
+            const chrome = mat(0xaaaaaa, 180);
+            const glass = new THREE.MeshPhongMaterial({ color:0x050e1a, shininess:250, transparent:true, opacity:0.8 });
+            const emissO = new THREE.MeshPhongMaterial({ color:0xff6600, emissive:0xcc4400 });
+            const emissW = new THREE.MeshPhongMaterial({ color:0xffffff, emissive:0xcccccc });
+            const emissR = new THREE.MeshPhongMaterial({ color:0xff0000, emissive:0xbb0000 });
+            const skidMat = mat(0x1a1a1a, 80);
+
+            // ── Main fuselage (blunt-nosed military profile)
+            // Belly / lower hull
+            addMesh(chassis, box(1.6,0.6,4.5), heliGreen, 0,0.55,0);
+            // Upper fuselage
+            addMesh(chassis, box(1.55,0.5,3.5), heliGreen, 0,1.05,0.3);
+            // Bulged engine cowling on top
+            addMesh(chassis, box(1.3,0.55,2.0), heliDark, 0,1.6,0.1);
+            // Cowling side fairings
+            addMesh(chassis, box(0.25,0.4,1.8), heliDark, -0.78,1.45,0.1);
+            addMesh(chassis, box(0.25,0.4,1.8), heliDark, 0.78,1.45,0.1);
+
+            // ── Nose section (sloped glass cockpit)
+            addMesh(chassis, box(1.5,0.7,1.2), heliDark, 0,0.8,2.35, -0.15,0,0);
+            // Multi-pane cockpit glass
+            addMesh(chassis, box(1.25,0.5,0.06), glass, 0,0.95,2.95, -0.35,0,0);
+            addMesh(chassis, box(0.56,0.55,0.06), glass, -0.56,0.78,2.88, -0.1,0,0);
+            addMesh(chassis, box(0.56,0.55,0.06), glass, 0.56,0.78,2.88, -0.1,0,0);
+            // Chin window (gunship style)
+            addMesh(chassis, box(0.8,0.28,0.06), glass, 0,0.5,2.98, 0.5,0,0);
+
+            // ── Cargo doors (sliding)
+            addMesh(chassis, box(0.06,0.9,1.4), heliDark, -0.82,0.75,-0.4);
+            addMesh(chassis, box(0.06,0.9,1.4), heliDark, 0.82,0.75,-0.4);
+            // Door window
+            addMesh(chassis, box(0.04,0.45,0.7), glass, -0.83,0.88,-0.3);
+            addMesh(chassis, box(0.04,0.45,0.7), glass, 0.83,0.88,-0.3);
+            // Door handle rail
+            addMesh(chassis, box(0.06,0.06,1.5), chrome, -0.84,0.56,-0.4);
+            addMesh(chassis, box(0.06,0.06,1.5), chrome, 0.84,0.56,-0.4);
+
+            // ── Tail boom
+            const boomGeo = cyl(0.22,0.09,4.5,12); boomGeo.rotateX(Math.PI/2);
+            addMesh(chassis, boomGeo, heliGreen, 0,0.85,-3.55);
+            // Tail boom stiffener stripe
+            addMesh(chassis, box(0.06,0.06,4.4), heliDark, 0,1.06,-3.5);
+
+            // ── Horizontal stabilisers
+            addMesh(chassis, box(2.4,0.08,0.7), heliGreen, 0,0.78,-5.55);
+            addMesh(chassis, box(0.6,0.06,0.25), heliDark, -0.9,0.78,-5.85);
+            addMesh(chassis, box(0.6,0.06,0.25), heliDark, 0.9,0.78,-5.85);
+            // Vertical fin
+            addMesh(chassis, box(0.08,1.3,0.75), heliGreen, 0,1.38,-5.5);
+
+            // ── Engine exhaust stacks (twin turboshaft)
+            const exhaustGeo = cyl(0.12,0.1,0.7,10); exhaustGeo.rotateX(Math.PI/2);
+            addMesh(chassis, exhaustGeo, metal, -0.45,1.95,-0.4);
+            addMesh(chassis, exhaustGeo, metal, 0.45,1.95,-0.4);
+            // Heat shields
+            addMesh(chassis, box(0.3,0.1,0.7), metal, -0.45,2.06,-0.4);
+            addMesh(chassis, box(0.3,0.1,0.7), metal, 0.45,2.06,-0.4);
+
+            // ── External fuel tanks (sponsons)
+            const sponsonGeo = cyl(0.22,0.18,1.2,10); sponsonGeo.rotateX(Math.PI/2);
+            addMesh(chassis, sponsonGeo, heliDark, -0.98,0.42,0.4);
+            addMesh(chassis, sponsonGeo, heliDark, 0.98,0.42,0.4);
+
+            // ── Forward rotor head / mast
+            const mastGeo = cyl(0.1,0.1,0.55,12);
+            addMesh(chassis, mastGeo, metal, 0,2.18,0.1);
+            addMesh(chassis, sphere(0.18,12), metal, 0,2.5,0.1); // hub
+
+            // ── Searchlight under nose
+            addMesh(chassis, sphere(0.18,12), emissW, 0,0.3,3.0);
+            addMesh(chassis, cyl(0.2,0.2,0.1,12), chrome, 0,0.3,2.92, Math.PI/2,0,0);
+
+            // ── Navigation lights
+            addMesh(chassis, sphere(0.09,8), emissR, -0.82,1.1,2.8);
+            addMesh(chassis, sphere(0.09,8), new THREE.MeshPhongMaterial({color:0x00ff00,emissive:0x00aa00}), 0.82,1.1,2.8);
+
+            // ── Tail anti-collision light
+            addMesh(chassis, sphere(0.1,8), emissO, 0,1.0,-5.8);
+
+            // ── Landing skids (heavy-duty with cross-tubes)
+            const skidGeo = cyl(0.07,0.07,4.8,8); skidGeo.rotateX(Math.PI/2);
+            addMesh(chassis, skidGeo, skidMat, -0.88,0.0,0.1);
+            addMesh(chassis, skidGeo, skidMat, 0.88,0.0,0.1);
+            // Cross-tube struts
+            const crossGeo = cyl(0.05,0.05,1.9,8); crossGeo.rotateZ(Math.PI/2);
+            addMesh(chassis, crossGeo, skidMat, 0,0.22,1.6);
+            addMesh(chassis, crossGeo, skidMat, 0,0.22,-1.3);
+            // Diagonal struts from fuselage to skids
+            const diagGeo = cyl(0.05,0.05,0.75,8);
+            for(let side of [-1,1]) {
+                addMesh(chassis, diagGeo, skidMat, side*0.44,0.11,1.6, 0,0,side*0.52);
+                addMesh(chassis, diagGeo, skidMat, side*0.44,0.11,-1.3, 0,0,side*0.52);
+            }
+
+            // ── Main rotor group (4-blade)
+            const localMainRotor = new THREE.Group();
+            localMainRotor.position.set(0,2.55,0.1);
+
+            const mastTopGeo = cyl(0.08,0.08,0.22,12); localMainRotor.add(new THREE.Mesh(mastTopGeo, metal));
+            // 4 blades
+            for(let b=0;b<4;b++) {
+                const angle = (b/4)*Math.PI*2;
+                const bladeGeo = box(4.0,0.06,0.36);
+                const blade = new THREE.Mesh(bladeGeo, heliDark);
+                blade.position.set(Math.cos(angle)*4.0, 0.11, Math.sin(angle)*4.0);
+                blade.rotation.y = angle;
+                localMainRotor.add(blade);
+            }
+            chassis.add(localMainRotor);
+            mainRotorMesh = localMainRotor;
+
+            // ── Tail rotor (4-blade)
+            const localTailRotor = new THREE.Group();
+            localTailRotor.position.set(0.32,1.1,-5.82);
+
+            for(let b=0;b<4;b++) {
+                const angle = (b/4)*Math.PI*2;
+                const tbladeGeo = box(0.04,0.6,0.12);
+                const tblade = new THREE.Mesh(tbladeGeo, heliDark);
+                tblade.position.set(0, Math.cos(angle)*0.6, Math.sin(angle)*0.6);
+                tblade.rotation.x = angle;
+                localTailRotor.add(tblade);
+            }
+            chassis.add(localTailRotor);
+            tailRotorMesh = localTailRotor;
+        }
+
+        // ─── DETAILED WHEELS ────────────────────────────────────────
+        function addDetailedWheels(container, positions, radius, width, addCalipers) {
+            const tyreMat = mat(0x0d0d0d, 8);
+            const rimMat = mat(0xcccccc, 180);
+            const hubMat = mat(0x888888, 120);
+            const caliperMat = new THREE.MeshPhongMaterial({ color:0xff0000, emissive:0xaa0000 });
+            const rotor = mat(0x888888, 80);
+
+            positions.forEach((pos, idx) => {
+                const wheelGroup = new THREE.Group();
+                wheelGroup.position.set(pos[0], pos[1], pos[2]);
+                // Tyre sidewall
+                const tyreGeo = cyl(radius, radius, width, 24); tyreGeo.rotateZ(Math.PI/2);
+                const tyre = new THREE.Mesh(tyreGeo, tyreMat);
+                tyre.castShadow = true;
+                wheelGroup.add(tyre);
+                // Tyre shoulder rings (sidewall detail)
+                const sideGeo = cyl(radius*0.98, radius*0.98, 0.03, 24);
+                sideGeo.rotateZ(Math.PI/2);
+                for(let s of [-width/2+0.02, width/2-0.02]) {
+                    const side = new THREE.Mesh(sideGeo, mat(0x181818,10));
+                    side.position.x = s;
+                    wheelGroup.add(side);
+                }
+                // Brake rotor disc
+                const rotorGeo = cyl(radius*0.62, radius*0.62, width*0.15, 24); rotorGeo.rotateZ(Math.PI/2);
+                const rotorMesh = new THREE.Mesh(rotorGeo, rotor);
+                wheelGroup.add(rotorMesh);
+                // Rim / alloy (5-spoke)
+                const rimGeo = cyl(radius*0.7, radius*0.7, width*0.6, 5); rimGeo.rotateZ(Math.PI/2);
+                const rim = new THREE.Mesh(rimGeo, rimMat);
+                wheelGroup.add(rim);
+                // Hub cap
+                const hubGeo = cyl(radius*0.2, radius*0.2, width*0.65, 12); hubGeo.rotateZ(Math.PI/2);
+                wheelGroup.add(new THREE.Mesh(hubGeo, hubMat));
+
+                container.add(wheelGroup);
+                wheelMeshes.push(wheelGroup);
+
+                // Brake calipers on rear axles
+                if (addCalipers && idx >= 2) {
+                    const calGeo = box(0.12,0.22,0.28);
+                    const cal = new THREE.Mesh(calGeo, caliperMat);
+                    cal.position.set(pos[0]*0.85, pos[1]+radius*0.55, pos[2]);
+                    container.add(cal);
+                    if (pos[0] < 0) leftBrakeCalipers.push(cal);
+                    else rightBrakeCalipers.push(cal);
+                }
+            });
+        }
+
+        // ─── TREE BUILDER ─────────────────────────────────────────
+        function createDetailedTree() {
+            const treeGroup = new THREE.Group();
+            treeGroup.name = 'env';
+            const trunkGeo = cyl(0.2,0.35,2.5,8);
+            const trunk = new THREE.Mesh(trunkGeo, mat(0x4d3224,20));
+            trunk.position.y = 1.25; trunk.castShadow = true;
+            treeGroup.add(trunk);
+            const tiers = [{r:2.0,h:2.5,y:3.2,col:0x245a34},{r:1.5,h:2.0,y:4.6,col:0x2e7543},{r:1.0,h:1.5,y:5.8,col:0x3b9354}];
+            tiers.forEach(t => {
+                const geo = new THREE.ConeGeometry(t.r,t.h,6);
+                const m = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({color:t.col,flatShading:true}));
+                m.position.y = t.y; m.castShadow = true;
+                treeGroup.add(m);
+            });
+            const s = 0.8 + Math.random()*0.4;
+            treeGroup.scale.set(s,s,s);
+            return treeGroup;
+        }
+
+        // ─── TRACK BUILDER ──────────────────────────────────────────
+        function buildTrack(trackIndex) {
+            const theme = STAGE_THEMES[trackIndex];
+            scene.background.setHex(theme.skyColor);
+            scene.fog.color.setHex(theme.fogColor);
+            scene.fog.density = theme.fogDensity;
+            dirLight.color.setHex(theme.lightColor);
+            dirLight.intensity = theme.lightIntensity;
+
+            scene.children.forEach(c => {
+                if (c.geometry && c.geometry.type === 'PlaneGeometry' && c.material)
+                    c.material.color.setHex(theme.grassColor);
+            });
+
+            if(trackMesh) scene.remove(trackMesh);
+            if(finishLineMesh) scene.remove(finishLineMesh);
+            scene.children = scene.children.filter(c => c.name !== 'env');
+            aerialHoops = []; clearedHoopIndices.clear();
+
+            let rawPoints = TRACK_DATA[trackIndex].map(p => new THREE.Vector3(p[0]*1.8, p[1], p[2]*1.8));
+            trackCurve = new THREE.CatmullRomCurve3(rawPoints, true, 'catmullrom', 0.5);
+            trackPoints = trackCurve.getSpacedPoints(300);
+
+            const numPoints = 250, trackWidth = 14;
+            const vertices=[], indices=[], uvs=[];
+
+            for(let i=0;i<=numPoints;i++) {
+                const t=i/numPoints;
+                const point=trackCurve.getPointAt(t%1.0);
+                const tangent=trackCurve.getTangentAt(t%1.0).normalize();
+                const normal=new THREE.Vector3(-tangent.z,0,tangent.x).normalize();
+                const lv=point.clone().add(normal.clone().multiplyScalar(-trackWidth/2));
+                const rv=point.clone().add(normal.clone().multiplyScalar(trackWidth/2));
+                lv.y=rv.y=0.04;
+                vertices.push(lv.x,lv.y,lv.z,rv.x,rv.y,rv.z);
+                uvs.push(0,t*15,1,t*15);
+                if(i<numPoints){const r1=i*2,r2=(i+1)*2;indices.push(r1,r1+1,r2,r1+1,r2+1,r2);}
+            }
+
+            const trackGeo=new THREE.BufferGeometry();
+            trackGeo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+            trackGeo.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
+            trackGeo.setIndex(indices); trackGeo.computeVertexNormals();
+            trackMesh=new THREE.Mesh(trackGeo,new THREE.MeshPhongMaterial({color:0x1f2129,side:THREE.DoubleSide,shininess:12}));
+            trackMesh.receiveShadow=true; scene.add(trackMesh);
+
+            // Curbs
+            const curbWidth=0.8;
+            const buildCurbMesh=(verts,idxs,cols)=>{
+                const g=new THREE.BufferGeometry();
+                g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));
+                g.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));
+                g.setIndex(idxs); g.computeVertexNormals();
+                const m=new THREE.Mesh(g,new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide}));
+                m.name='env'; m.receiveShadow=true; scene.add(m);
+            };
+            const cvL=[],cvR=[],ci=[],cc=[];
+            for(let i=0;i<=numPoints;i++){
+                const t=i/numPoints;
+                const p=trackCurve.getPointAt(t%1.0);
+                const tg=trackCurve.getTangentAt(t%1.0).normalize();
+                const n=new THREE.Vector3(-tg.z,0,tg.x).normalize();
+                const cl1=p.clone().add(n.clone().multiplyScalar(-trackWidth/2));
+                const cl2=p.clone().add(n.clone().multiplyScalar(-trackWidth/2-curbWidth));
+                cl1.y=cl2.y=0.05;
+                cvL.push(cl1.x,cl1.y,cl1.z,cl2.x,cl2.y,cl2.z);
+                const cr1=p.clone().add(n.clone().multiplyScalar(trackWidth/2));
+                const cr2=p.clone().add(n.clone().multiplyScalar(trackWidth/2+curbWidth));
+                cr1.y=cr2.y=0.05;
+                cvR.push(cr1.x,cr1.y,cr1.z,cr2.x,cr2.y,cr2.z);
+                const isRed=Math.floor(t*80)%2===0;
+                const col=isRed?[1.0,0.1,0.1]:[1.0,1.0,1.0];
+                cc.push(...col,...col);
+                if(i<numPoints){const r1=i*2,r2=(i+1)*2;ci.push(r1,r1+1,r2,r1+1,r2+1,r2);}
+            }
+            buildCurbMesh(cvL,ci,cc); buildCurbMesh(cvR,ci,cc);
+
+            // Finish line
+            const sp=trackCurve.getPointAt(0);
+            const tg=trackCurve.getTangentAt(0);
+            const angle=Math.atan2(tg.x,tg.z);
+            const flGeo=new THREE.PlaneGeometry(trackWidth,2.5);
+            const flMat=new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide});
+            finishLineMesh=new THREE.Mesh(flGeo,flMat);
+            finishLineMesh.position.copy(sp); finishLineMesh.position.y=0.06;
+            finishLineMesh.rotation.x=-Math.PI/2; finishLineMesh.rotation.z=angle;
+            scene.add(finishLineMesh);
+
+            // Hoops
+            const hoopMat=new THREE.MeshBasicMaterial({color:theme.hoopColor,wireframe:true});
+            const hoopGeo=new THREE.TorusGeometry(3.5,0.3,8,24);
+            for(let i=0;i<8;i++){
+                const t=(i+0.5)/8;
+                const p=trackCurve.getPointAt(t);
+                const tg2=trackCurve.getTangentAt(t).normalize();
+                const hoop=new THREE.Mesh(hoopGeo,hoopMat);
+                hoop.position.copy(p); hoop.position.y=8+Math.sin(i*1.7)*5;
+                hoop.rotation.y=Math.atan2(tg2.x,tg2.z);
+                hoop.name='env'; scene.add(hoop); aerialHoops.push(hoop);
+            }
+
+            // Buildings
+            for(let i=0;i<80;i++){
+                const t=Math.random(), p=trackCurve.getPointAt(t);
+                const tg2=trackCurve.getTangentAt(t).normalize();
+                const n=new THREE.Vector3(-tg2.z,0,tg2.x).normalize();
+                const side=Math.random()<0.5?-1:1;
+                const dist=18+Math.random()*32;
+                const bp=p.clone().add(n.multiplyScalar(side*dist));
+                bp.y=0;
+                const h=15+Math.random()*35, w=6+Math.random()*5;
+                const bGeo=new THREE.BoxGeometry(w,h,w);
+                const bMat=new THREE.MeshPhongMaterial({color:theme.buildingColors[Math.floor(Math.random()*theme.buildingColors.length)],shininess:30});
+                const building=new THREE.Mesh(bGeo,bMat);
+                building.position.copy(bp); building.position.y=h/2;
+                building.castShadow=building.receiveShadow=true; building.name='env'; scene.add(building);
+                const winGeo=new THREE.BoxGeometry(0.5,0.5,0.1);
+                const winMat=new THREE.MeshBasicMaterial({color:theme.windowColor});
+                for(let ww=0;ww<6+Math.floor(Math.random()*8);ww++){
+                    const wm=new THREE.Mesh(winGeo,winMat);
+                    wm.position.set((Math.random()-0.5)*(w-0.5),Math.random()*(h-2)-(h/2)+1,w/2+0.05);
+                    building.add(wm);
+                }
+            }
+
+            // Trees
+            for(let i=0;i<40;i++){
+                const t=Math.random(), p=trackCurve.getPointAt(t);
+                const tg2=trackCurve.getTangentAt(t).normalize();
+                const n=new THREE.Vector3(-tg2.z,0,tg2.x).normalize();
+                const side=Math.random()<0.5?-1:1;
+                const tp=p.clone().add(n.multiplyScalar(side*(12+Math.random()*10)));
+                tp.y=0;
+                const tree=createDetailedTree(); tree.position.copy(tp); scene.add(tree);
+            }
+
+            vehicleGroup.position.copy(sp); vehicleGroup.position.y=0.05;
+            vehicleGroup.rotation.set(0,angle,0);
+            buildCpuRacers(sp,angle);
+        }
+
+        // ─── CPU RACERS ──────────────────────────────────────────────
+        function buildCpuRacers(startPoint, startAngle) {
+            cpuRacerGroups.forEach(g => scene.remove(g));
+            cpuRacerGroups=[]; cpuRacerData=[];
+            if(!enableCpuOpponents) return;
+
+            const cfgs=[
+                {offset:-3.5,color:0xffaa00,type:'car',speedFactor:0.8},
+                {offset:3.5,color:0xcc00ff,type:'car',speedFactor:0.76},
+                {offset:0,color:0x00ff00,type:currentVehicleType==='plane'||currentVehicleType==='heli'?'plane':'car',speedFactor:0.82}
+            ];
+
+            cfgs.forEach((cfg,index) => {
+                const group=new THREE.Group(), chassis=new THREE.Group();
+                group.add(chassis);
+                if(cfg.type==='car') buildDetailedCar(chassis,group);
+                else buildDetailedPlane(chassis,group);
+                const ov=new THREE.Vector3(-Math.sin(startAngle+Math.PI/2),0,Math.cos(startAngle+Math.PI/2)).multiplyScalar(cfg.offset);
+                group.position.copy(startPoint).add(ov);
+                group.rotation.set(0,startAngle,0);
+                scene.add(group); cpuRacerGroups.push(group);
+                cpuRacerData.push({t:0,offset:cfg.offset,type:cfg.type,speedFactor:cfg.speedFactor,altitude:cfg.type==='plane'?8:0.05});
+            });
+        }
+
+        function updateCpuRacers(delta) {
+            if(!enableCpuOpponents||!isRacing) return;
+            cpuRacerGroups.forEach((group,index) => {
+                const data=cpuRacerData[index];
+                let tDiff=data.t-playerT;
+                if(tDiff>0.5) tDiff-=1; if(tDiff<-0.5) tDiff+=1;
+                let sm=data.speedFactor*0.42;
+                if(tDiff>0.04) sm*=0.4; else if(tDiff<-0.06) sm*=1.4;
+                const ps=(VEHICLE_CONFIGS[currentVehicleType].maxSpeed*0.0025)*sm;
+                data.t+=ps*delta*60; if(data.t>1) data.t-=1;
+                const tp=trackCurve.getPointAt(data.t);
+                const tg=trackCurve.getTangentAt(data.t).normalize();
+                const n=new THREE.Vector3(-tg.z,0,tg.x).normalize();
+                const op=tp.clone().add(n.multiplyScalar(data.offset));
+                if(data.type==='plane') data.altitude=10+Math.sin(data.t*Math.PI*6)*3;
+                op.y=data.altitude;
+                group.position.copy(op);
+                group.lookAt(op.clone().add(tg));
+            });
+        }
+
+        // ─── GAME CONTROL ────────────────────────────────────────────
+        function startGame() {
+            rebuildVehicleModel();
+            buildTrack(currentTrackIndex);
+            speed=0; altitude=0.05; targetAltitude=0.05; isFlying=false;
+            currentLap=1; raceTime=0; checkPointsPassed=0; isRacing=true;
+            document.getElementById('hud-lap').innerText=currentLap;
+            document.getElementById('hud-time').innerText="00:00.00";
+            showScreen(null);
+            document.getElementById('hud-top').style.display='flex';
+            document.getElementById('hud-bottom-right').style.display='block';
+        }
+
+        function endGame() {
+            isRacing=false;
+            document.getElementById('hud-top').style.display='none';
+            document.getElementById('hud-bottom-right').style.display='none';
+            document.getElementById('final-time').innerText=`Stage Time: ${formatTime(raceTime)}`;
+            showScreen('screen-result');
+        }
+
+        // ─── PHYSICS ─────────────────────────────────────────────────
+        function updatePhysics(delta) {
+            const cfg=VEHICLE_CONFIGS[currentVehicleType];
+            if(keys.up) speed+=acceleration;
+            else if(keys.down) speed-=braking;
+
+            let curFriction=friction;
+            let isOffTrack=false;
+            if(altitude<1.0){
+                isOffTrack=true;
+                for(let i=0;i<trackPoints.length;i+=3){
+                    if(vehicleGroup.position.distanceToSquared(trackPoints[i])<72){isOffTrack=false;break;}
+                }
+            }
+
+            let activeMaxSteer=isOffTrack?0.09:0.055;
+            if(isOffTrack){
+                curFriction=offTrackFriction;
+                vehicleChassis.position.y=Math.sin(Date.now()*0.18)*0.05;
+                vehicleChassis.position.x=Math.cos(Date.now()*0.18)*0.02;
+            } else { vehicleChassis.position.set(0,0,0); }
+
+            speed*=curFriction;
+            if(speed>maxSpeed) speed=maxSpeed;
+            if(speed<-maxSpeed/2) speed=-maxSpeed/2;
+
+            if(Math.abs(speed)>0.01){
+                let tf=Math.abs(speed)/maxSpeed;
+                if(tf>0.9) tf=0.9;
+                if(currentVehicleType==='heli') tf=1.0;
+                const ta=activeMaxSteer*tf*(speed>0?1:-1)*(cfg.steerFactor||1.0);
+                if(keys.left) vehicleGroup.rotation.y+=ta;
+                if(keys.right) vehicleGroup.rotation.y-=ta;
+            }
+
+            // Boundary containment
+            let closestTP=null, minDist=Infinity;
+            for(let i=0;i<trackPoints.length;i+=4){
+                const d=vehicleGroup.position.distanceTo(trackPoints[i]);
+                if(d<minDist){minDist=d;closestTP=trackPoints[i];}
+            }
+            if(minDist>120&&altitude<1.5){
+                const pd=closestTP.clone().sub(vehicleGroup.position).normalize();
+                vehicleGroup.position.add(pd.multiplyScalar(minDist-120));
+                speed*=0.3;
+            }
+
+            // Flight
+            if(currentVehicleType==='plane'){
+                if(speed>0.70){if(keys.space){targetAltitude+=0.35;isFlying=true;}}
+                if(keys.shift&&altitude>0.05) targetAltitude-=0.35;
+                if(speed<0.70&&altitude>0.05) targetAltitude-=0.15;
+            } else if(currentVehicleType==='heli'){
+                if(keys.space){targetAltitude+=0.3;isFlying=true;}
+                if(keys.shift&&altitude>0.05) targetAltitude-=0.3;
+            }
+
+            if(targetAltitude<0.05) targetAltitude=0.05;
+            if(targetAltitude>45) targetAltitude=45;
+            altitude=THREE.MathUtils.lerp(altitude,targetAltitude,0.1);
+            vehicleGroup.position.y=altitude;
+
+            if(altitude>0.3){
+                const pitch=(targetAltitude-altitude)*0.08;
+                vehicleChassis.rotation.x=THREE.MathUtils.clamp(pitch,-0.4,0.4);
+                if(keys.left) vehicleChassis.rotation.z=THREE.MathUtils.lerp(vehicleChassis.rotation.z,-0.45,0.1);
+                else if(keys.right) vehicleChassis.rotation.z=THREE.MathUtils.lerp(vehicleChassis.rotation.z,0.45,0.1);
+                else vehicleChassis.rotation.z=THREE.MathUtils.lerp(vehicleChassis.rotation.z,0,0.1);
+            } else { vehicleChassis.rotation.set(0,0,0); }
+
+            // Exhaust fire
+            if(exhaustFireL&&exhaustFireR){
+                const fs=keys.up?(0.4+Math.random()*0.6):0.01;
+                exhaustFireL.scale.set(fs,fs,fs); exhaustFireR.scale.set(fs,fs,fs);
+            }
+
+            // Wheel roll animation
+            const rollSpeed = speed * 2.5;
+            wheelMeshes.forEach(w => { w.rotation.x += rollSpeed; });
+
+            vehicleGroup.translateZ(speed);
+
+            // Speedometer update
+            const spdVal=Math.round(Math.abs(speed)*71.5);
+            document.getElementById('speedo-value').innerText=spdVal;
+            const pct=Math.min(100, (Math.abs(speed)/maxSpeed)*100);
+            document.getElementById('speedo-bar-fill').style.width=pct+'%';
+
+            // Hoops
+            aerialHoops.forEach((hoop,i)=>{
+                if(!clearedHoopIndices.has(i)&&vehicleGroup.position.distanceTo(hoop.position)<4.2){
+                    clearedHoopIndices.add(i); showHoopAlert();
+                }
+            });
+
+            // Checkpoints & laps
+            if(isRacing){
+                const dToFinish=vehicleGroup.position.distanceTo(finishLineMesh.position);
+                let closestT=0, minD2=Infinity;
+                for(let i=0;i<=20;i++){
+                    const t=i/20, p=trackCurve.getPointAt(t);
+                    const d=vehicleGroup.position.distanceToSquared(p);
+                    if(d<minD2){minD2=d;closestT=t;}
+                }
+                playerT=closestT;
+                const exp=checkPointsPassed/totalCheckpoints;
+                if(altitude<3&&closestT<exp-0.25&&closestT>0.1&&exp<0.85)
+                    document.getElementById('wrong-way').style.display='block';
+                else document.getElementById('wrong-way').style.display='none';
+
+                if(closestT>exp&&closestT<exp+0.35) checkPointsPassed++;
+                if(dToFinish<18&&checkPointsPassed>=totalCheckpoints-2){
+                    checkPointsPassed=0; currentLap++;
+                    if(currentLap>TOTAL_LAPS) endGame();
+                    else document.getElementById('hud-lap').innerText=currentLap;
+                }
+            }
+        }
+
+        function showHoopAlert() {
+            const s=document.getElementById('hoop-splash');
+            s.style.display='block';
+            setTimeout(()=>s.style.display='none',600);
+        }
+
+        function updateCamera() {
+            const rco=new THREE.Vector3(0,5.0,-12.5);
+            const co=rco.applyMatrix4(vehicleGroup.matrixWorld);
+            camera.position.lerp(co,0.15);
+            const la=vehicleGroup.position.clone().add(new THREE.Vector3(0,0,4).applyQuaternion(vehicleGroup.quaternion));
+            camera.lookAt(la);
+        }
+
+        function animate() {
+            const delta=clock.getDelta();
+            if(isRacing){ raceTime+=delta; document.getElementById('hud-time').innerText=formatTime(raceTime); }
+            if(vehicleGroup&&vehicleChassis){ updatePhysics(delta); updateCpuRacers(delta); updateCamera(); }
+            if(propellerMesh) propellerMesh.rotation.z+=(speed+0.1)*3.0;
+            if(mainRotorMesh&&tailRotorMesh){
+                const rs=keys.space?4.5:2.5;
+                mainRotorMesh.rotation.y+=rs; tailRotorMesh.rotation.x+=rs;
+            }
+            scene.children.forEach(c=>{
+                if(c.name==='env'&&c.children[0]&&c.children[0].geometry&&c.children[0].geometry.type==='SphereGeometry'){
+                    c.position.x+=0.05; if(c.position.x>700) c.position.x=-700;
+                }
+            });
+            renderer.render(scene,camera);
+        }
+
+        // ─── LEADERBOARD ─────────────────────────────────────────────
+        async function submitScore() {
+            if(!isOnline||!user){alert("Playing in offline sandbox loop.");return;}
+            const name=document.getElementById('player-name-input').value.trim()||"RACER";
+            const btn=document.getElementById('btn-submit-score');
+            btn.disabled=true; btn.innerText="RECORDING...";
+            try {
+                const lbCol=collection(db,'artifacts',appId,'public','data','leaderboard');
+                await addDoc(lbCol,{uid:user.uid,name,trackId:currentTrackIndex,time:raceTime,timestamp:serverTimestamp()});
+                btn.innerText="RECORDED!";
+                setTimeout(()=>{showScreen('screen-leaderboard');document.getElementById('lb-track-select').value=currentTrackIndex;loadLeaderboard(currentTrackIndex);},1000);
+            } catch(e){console.error(e);btn.innerText="CONN ERROR";btn.disabled=false;}
+        }
+
+        async function loadLeaderboard(trackIdStr) {
+            if(!isOnline||!user){document.getElementById('lb-list').innerHTML="<div style='text-align:center;padding:15px;color:var(--text-muted)'>No Server Connection</div>";return;}
+            const trackId=parseInt(trackIdStr);
+            const lbList=document.getElementById('lb-list');
+            lbList.innerHTML="<div style='text-align:center;color:var(--text-muted)'>Fetching data...</div>";
+            try {
+                const lbCol=collection(db,'artifacts',appId,'public','data','leaderboard');
+                const snap=await getDocs(lbCol);
+                let records=[];
+                snap.forEach(doc=>{const d=doc.data();if(d.trackId===trackId)records.push(d);});
+                records.sort((a,b)=>a.time-b.time); records=records.slice(0,10);
+                if(!records.length){lbList.innerHTML="<div style='text-align:center;padding:20px;color:var(--text-muted)'>No records yet.</div>";return;}
+                let html="";
+                records.forEach((r,i)=>{
+                    let badge=`${i+1}. `;
+                    if(i===0)badge="🥇 1st ";if(i===1)badge="🥈 2nd ";if(i===2)badge="🥉 3rd ";
+                    const hl=r.uid===user.uid?"font-weight:bold;color:var(--primary);border-color:var(--primary);":"";
+                    html+=`<div class="lb-entry" style="${hl}"><span>${badge}${escapeHTML(r.name)}</span><span>${formatTime(r.time)}</span></div>`;
+                });
+                lbList.innerHTML=html;
+            } catch(e){console.error(e);lbList.innerHTML="<div style='text-align:center;color:#f33'>Query Error</div>";}
+        }
+
+        document.getElementById('btn-submit-score').onclick=submitScore;
+
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g,t=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[t]||t));
+        }
+
+        window.onload=()=>initFirebase().then(()=>initThree());
+    </script>
+</body>
+</html>
