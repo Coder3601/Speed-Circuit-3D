@@ -1,0 +1,2193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Speed Circuit</title>
+    <style>
+        :root {
+            --primary: #ff4500;     /* High-Vis Racing Orange */
+            --bg: #06070a;          /* Deep Carbon Black */
+            --panel: #0d0f14;       /* Matte Slate Dashboard */
+            --accent: #00ff88;      /* Active Green Telemetry */
+            --detail: #00e5ff;      /* Telemetry Info Cyan */
+            --text-main: #f0f3f8;
+            --text-muted: #5a6073;
+            --border: #1a1d28;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace, system-ui;
+            background-color: var(--bg);
+            color: var(--text-main);
+            touch-action: none;
+        }
+        #game-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        
+        /* UI Layer */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .screen {
+            background: var(--panel);
+            padding: 24px;
+            border-radius: 0px; 
+            box-shadow: 12px 12px 0px rgba(0,0,0,0.95);
+            text-align: center;
+            pointer-events: auto;
+            border: 2px solid var(--primary);
+            max-width: 90%;
+            width: 480px;
+            display: none;
+        }
+        .screen.active {
+            display: block;
+        }
+
+        /* Diagnostic telemetry accents */
+        .dash-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            color: var(--detail);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            color: var(--primary);
+            font-size: 2.2rem;
+            margin: 10px 0;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            font-weight: 900;
+        }
+        h2 { 
+            color: var(--accent); 
+            text-transform: uppercase;
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            margin: 10px 0;
+        }
+
+        .option-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #10131c;
+            border: 1px solid var(--border);
+            margin-bottom: 12px;
+        }
+        .option-label {
+            font-weight: bold;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            color: var(--text-main);
+        }
+
+        .telemetry-toggle {
+            background: #171b26;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 6px 15px;
+            font-family: inherit;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .telemetry-toggle.active {
+            background: var(--accent);
+            color: #000;
+            border-color: var(--accent);
+        }
+
+        /* Tactical Button Selection Grids */
+        .category-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin-bottom: 15px;
+        }
+        .selector-btn {
+            background: #10131c;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 10px 5px;
+            font-size: 0.75rem;
+            font-family: inherit;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: all 0.15s ease;
+        }
+        .selector-btn.active {
+            border-color: var(--primary);
+            background: rgba(255, 69, 0, 0.15);
+            color: var(--text-main);
+            box-shadow: 0 0 8px rgba(255, 69, 0, 0.2);
+        }
+        .selector-btn:hover {
+            border-color: var(--detail);
+        }
+
+        button {
+            background: var(--primary);
+            color: #000;
+            border: none;
+            padding: 12px 20px;
+            font-size: 1rem;
+            font-family: inherit;
+            cursor: pointer;
+            margin: 6px 0;
+            width: 100%;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: background 0.1s, color 0.1s;
+        }
+        button:hover { 
+            background: var(--text-main); 
+            color: #000;
+        }
+        button:active { 
+            transform: translateY(2px); 
+        }
+        button.secondary { 
+            background: transparent; 
+            border: 2px solid var(--border); 
+            color: var(--text-muted); 
+        }
+        button.secondary:hover { 
+            border-color: var(--primary); 
+            color: var(--text-main); 
+        }
+
+        /* Selector Grids */
+        .selector-label {
+            text-align: left;
+            font-size: 0.75rem;
+            color: var(--primary);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            letter-spacing: 1.5px;
+            font-weight: bold;
+        }
+        .track-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            margin-bottom: 15px;
+            max-height: 130px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        .select-btn {
+            background: #10131c;
+            border: 1px solid var(--border);
+            padding: 8px 12px;
+            font-size: 0.8rem;
+            color: var(--text-main);
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .select-btn.active {
+            border-color: var(--primary);
+            background: rgba(255, 69, 0, 0.1);
+        }
+        .select-btn span {
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+        }
+        .select-btn span::before {
+            content: "» ";
+            color: var(--primary);
+        }
+        .select-btn small {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            margin-top: 2px;
+        }
+        .select-btn:hover { 
+            border-color: var(--detail); 
+        }
+
+        /* HUD & Gears */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: none;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 5;
+        }
+        .hud-box {
+            background: var(--panel);
+            padding: 8px 16px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border: 2px solid var(--border);
+            color: var(--text-main);
+            pointer-events: auto; 
+        }
+        .hud-box span {
+            color: var(--primary);
+        }
+
+        /* Setup Icon in Top Right */
+        #setup-icon-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: var(--panel);
+            border: 2px solid var(--border);
+            width: 44px;
+            height: 44px;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            color: var(--text-main);
+            cursor: pointer;
+            z-index: 15;
+            pointer-events: auto;
+            transition: all 0.2s ease;
+        }
+        #setup-icon-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: rotate(45deg);
+        }
+
+        /* Speedometer Bottom Left HUD */
+        #speedometer-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: var(--panel);
+            border: 2px solid var(--border);
+            padding: 12px 20px;
+            display: none;
+            flex-direction: column;
+            min-width: 140px;
+            z-index: 5;
+            font-family: inherit;
+        }
+        #speedometer-panel .speed-val {
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: var(--detail);
+            line-height: 1;
+        }
+        #speedometer-panel .speed-unit {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+
+        #wrong-way, #hoop-splash {
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            display: none;
+            background: var(--panel);
+            padding: 10px 20px;
+            border: 2px dashed #ff3333;
+            animation: flash 0.5s infinite alternate;
+            z-index: 6;
+        }
+        #hoop-splash {
+            color: var(--accent);
+            border-color: var(--accent);
+            animation: scaleUp 0.6s ease-out forwards;
+        }
+        @keyframes flash {
+            from { opacity: 1; }
+            to { opacity: 0.3; }
+        }
+        @keyframes scaleUp {
+            0% { transform: translateX(-50%) scale(0.5); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateX(-50%) scale(1.2); opacity: 0; }
+        }
+
+        /* Leaderboard */
+        .lb-container { max-height: 180px; overflow-y: auto; margin-bottom: 20px; text-align: left; }
+        .lb-entry {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            border-bottom: 1px dashed var(--border);
+            font-size: 0.95rem;
+        }
+        .lb-entry:nth-child(odd) { background: rgba(255,255,255,0.02); }
+        .lb-entry span:nth-child(2) { color: var(--accent); font-weight: bold;}
+        
+        #player-name-input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 0;
+            border: 2px solid var(--border);
+            background: #0d0f14;
+            color: white;
+            font-size: 1.1rem;
+            text-align: center;
+            font-family: inherit;
+        }
+        #player-name-input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        /* Touch Controls */
+        #touch-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            height: 150px;
+            display: none; 
+            pointer-events: none;
+            z-index: 5;
+        }
+        .touch-btn {
+            position: absolute;
+            width: 70px;
+            height: 70px;
+            background: rgba(20, 22, 31, 0.9);
+            border: 2px solid var(--border);
+            color: var(--text-main);
+            pointer-events: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            user-select: none;
+        }
+        .touch-btn:active { 
+            background: var(--primary); 
+            color: #000;
+            border-color: var(--primary);
+        }
+        #btn-left { bottom: 20px; left: 20px; }
+        #btn-right { bottom: 20px; left: 100px; }
+        #btn-accel { bottom: 20px; right: 20px; width: 80px; height: 80px;}
+        #btn-brake { bottom: 20px; right: 110px; width: 65px; height: 65px;}
+        #btn-up-air { bottom: 95px; right: 20px; width: 55px; height: 55px; background: rgba(0, 255, 204, 0.15); border-color: var(--accent);}
+        #btn-down-air { bottom: 95px; right: 85px; width: 55px; height: 55px; background: rgba(0, 255, 204, 0.15); border-color: var(--accent);}
+
+        /* Morphing System Loader Container */
+        #loading {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: #06070a;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            color: #fff;
+        }
+        .loader-icon-container {
+            margin-bottom: 20px;
+        }
+        #loader-text {
+            color: var(--detail);
+            font-size: 1.1rem;
+            letter-spacing: 2px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Morphing Hardware Loading System -->
+    <div id="loading">
+        <div class="loader-icon-container">
+            <svg id="loader-svg" width="120" height="120" viewBox="0 0 100 100"></svg>
+        </div>
+        <div id="loader-text">INITIALIZING SYSTEMS...</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px;">CORE STABLE // MEMORY SYNC OK</div>
+    </div>
+
+    <!-- UI Overlay -->
+    <div id="ui-layer">
+        
+        <!-- Main Menu -->
+        <div id="screen-menu" class="screen active">
+            <div class="dash-header">
+                <span>SYSTEM: NOMINAL</span>
+                <span>BAUD: 115200</span>
+            </div>
+            <h1>SPEED CIRCUIT</h1>
+            <p style="color: var(--text-muted); line-height: 1.5; margin-bottom: 25px; font-size: 0.85rem;">High-performance motorsport telemetry & sandbox. Configure parameters to initialize simulation loop.</p>
+            <button id="btn-play">Configure Sim</button>
+            <button id="btn-show-leaderboard" class="secondary">System Records</button>
+            <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 25px; border-top: 1px solid var(--border); padding-top: 15px; text-align: left;">
+                STEER: [A/D] [LEFT/RIGHT]<br>
+                ALTITUDE: [SPACE] TO TAKE OFF / [SHIFT] TO DESCEND
+            </p>
+        </div>
+
+        <!-- Track & Vehicle Select -->
+        <div id="screen-tracks" class="screen">
+            <div class="dash-header">
+                <span>STAGE SETUP</span>
+                <span>SYSTEM PARAMETERS</span>
+            </div>
+            <h1>SETUP CONFIG</h1>
+            
+            <!-- Category selector buttons -->
+            <div class="selector-label">Air Fleet Core</div>
+            <div class="category-row" id="air-options">
+                <button class="selector-btn" data-vehicle="plane">BIPLANE</button>
+                <button class="selector-btn" data-vehicle="heli">HELI</button>
+                <button class="selector-btn" data-vehicle="jet">JET</button>
+                <button class="selector-btn active" data-vehicle="none">NONE</button>
+            </div>
+
+            <div class="selector-label">Land Division</div>
+            <div class="category-row" id="land-options">
+                <button class="selector-btn active" data-vehicle="car">SPORTS CAR</button>
+                <button class="selector-btn" data-vehicle="bus">METRO BUS</button>
+                <button class="selector-btn" style="grid-column: span 2;" data-vehicle="none">NONE</button>
+            </div>
+
+            <div class="selector-label">Water Fleet Division</div>
+            <div class="category-row" id="water-options">
+                <button class="selector-btn" data-vehicle="boat">SPEEDBOAT</button>
+                <button class="selector-btn" data-vehicle="yacht">SUPERYACHT</button>
+                <button class="selector-btn" style="grid-column: span 2;" data-vehicle="none">NONE</button>
+            </div>
+
+            <div class="selector-label">Select Stage Track</div>
+            <div class="track-grid">
+                <button class="select-btn select-track active" data-track="0">
+                    <span>STAGE 01</span>
+                    <small>Beginner Oval Circuit</small>
+                </button>
+                <button class="select-btn select-track" data-track="1">
+                    <span>STAGE 02</span>
+                    <small>Over-Under Figure 8</small>
+                </button>
+                <button class="select-btn select-track" data-track="2">
+                    <span>STAGE 03</span>
+                    <small>The ZigZag chicanes</small>
+                </button>
+                <button class="select-btn select-track" data-track="3">
+                    <span>STAGE 04</span>
+                    <small>Mountain Hairpins</small>
+                </button>
+                <button class="select-btn select-track" data-track="4">
+                    <span>STAGE 05</span>
+                    <small>Apex Pro Championship</small>
+                </button>
+            </div>
+
+            <div class="selector-label">Match Variables</div>
+            <div class="option-row">
+                <div class="option-label">CPU Rivals (Slower & Paced)</div>
+                <button class="telemetry-toggle active" id="btn-toggle-cpu">ENABLED</button>
+            </div>
+
+            <button id="btn-start-race" style="margin-top: 10px;">Launch Simulation</button>
+            <button id="btn-back-menu" class="secondary">Back</button>
+        </div>
+
+        <!-- Game Over / Results -->
+        <div id="screen-result" class="screen">
+            <div class="dash-header">
+                <span>SIMULATION TERMINATED</span>
+                <span>STATUS: COMPLETE</span>
+            </div>
+            <h1>STAGE COMPLETE</h1>
+            <h2 id="final-time">00:00.00</h2>
+            <p id="new-record-msg" style="color: var(--accent); display: none;">New Telemetry Record!</p>
+            
+            <div style="margin: 20px 0;">
+                <input type="text" id="player-name-input" placeholder="RACER NAME" maxlength="15">
+                <button id="btn-submit-score">Save Telemetry</button>
+            </div>
+            
+            <button id="btn-retry" class="secondary">Retry Stage</button>
+            <button id="btn-menu-from-result" class="secondary">Main Menu</button>
+        </div>
+
+        <!-- Leaderboard Screen -->
+        <div id="screen-leaderboard" class="screen">
+            <div class="dash-header">
+                <span>GLOBAL TELEMETRY ARCHIVE</span>
+                <span>FILTER: TOP 10</span>
+            </div>
+            <h1>STAGE RECORDS</h1>
+            <select id="lb-track-select" style="width: 100%; padding: 12px; margin-bottom: 15px; background: #0d0f14; color: white; border: 2px solid var(--border); font-family: inherit;">
+                <option value="0">STAGE 01 - Beginner Oval</option>
+                <option value="1">STAGE 02 - Figure 8</option>
+                <option value="2">STAGE 03 - The ZigZag</option>
+                <option value="3">STAGE 04 - Hairpins</option>
+                <option value="4">STAGE 05 - Pro Circuit</option>
+            </select>
+            <div class="lb-container" id="lb-list">
+                <!-- Entries populated here -->
+                <div style="text-align: center; color: var(--text-muted);">Loading records...</div>
+            </div>
+            <button id="btn-back-from-lb" class="secondary">Return</button>
+        </div>
+    </div>
+
+    <!-- In-Game HUD -->
+    <div id="hud">
+        <div class="hud-box">LAP: <span id="hud-lap">1</span>/3</div>
+        <div class="hud-box" id="hud-time">00:00.00</div>
+    </div>
+
+    <!-- Setup gear icon top right -->
+    <div id="setup-icon-btn">⚙</div>
+
+    <!-- Speedometer Bottom Left HUD -->
+    <div id="speedometer-panel">
+        <div class="speed-val" id="hud-speed">0</div>
+        <div class="speed-unit">Miles / Hr</div>
+    </div>
+
+    <div id="wrong-way">Wrong Way!</div>
+    <div id="hoop-splash">HOOP CLEARED!</div>
+
+    <!-- Mobile Touch Controls -->
+    <div id="touch-controls">
+        <div class="touch-btn" id="btn-left">◀</div>
+        <div class="touch-btn" id="btn-right">▶</div>
+        <div class="touch-btn" id="btn-brake">B</div>
+        <div class="touch-btn" id="btn-accel">A</div>
+        <div class="touch-btn" id="btn-up-air">▲ FLY</div>
+        <div class="touch-btn" id="btn-down-air">▼ LAND</div>
+    </div>
+
+    <!-- Firebase SDKs & Three.js -->
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js';
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- GLOBAL MODULE VARIABLES ---
+        let scene, camera, renderer, dirLight;
+        let vehicleGroup, vehicleChassis;
+        let propellerMesh, mainRotorMesh, tailRotorMesh;
+        let trackMesh, waterMeshL, waterMeshR, finishLineMesh;
+        let trackCurve;
+        const clock = new THREE.Clock();
+
+        let leftBrakeCalipers = [], rightBrakeCalipers = [];
+        let exhaustFireL, exhaustFireR;
+
+        // Configuration Globals
+        let currentVehicleType = 'car';
+        let currentTrackIndex = 0;
+        let enableCpuOpponents = true;
+
+        // High Performance Physics/Movement State
+        let speed = 0;
+        let maxSpeed = 3.6;          
+        let acceleration = 0.024;   
+        let braking = 0.06;         
+        const friction = 0.99;        
+        const offTrackFriction = 0.92; 
+
+        // Vertical / Flight State
+        let altitude = 0.05;
+        let targetAltitude = 0.05;
+        let isFlying = false;
+
+        // Race State
+        let currentLap = 1;
+        let raceTime = 0;
+        let isRacing = false;
+        let checkPointsPassed = 0;
+        const totalCheckpoints = 10;
+        let trackPoints = [];
+        let playerT = 0; 
+
+        // CPU Racers
+        let cpuRacerGroups = [];
+        let cpuRacerData = [];
+
+        // Neon Hoops
+        let aerialHoops = [];
+        const clearedHoopIndices = new Set();
+
+        // Input State - Universal WASD and Arrow Mappings
+        const keys = { up: false, down: false, left: false, right: false, space: false, shift: false };
+
+        // Vehicle configs
+        const VEHICLE_CONFIGS = {
+            car: { maxSpeed: 4.5, acceleration: 0.028, braking: 0.08, weight: 1.0, steerFactor: 1.0, canReverse: true },
+            bus: { maxSpeed: 2.6, acceleration: 0.015, braking: 0.05, weight: 2.8, steerFactor: 1.5, canReverse: true },
+            plane: { maxSpeed: 3.2, acceleration: 0.020, braking: 0.06, weight: 1.2, steerFactor: 1.0, canReverse: false }, 
+            heli: { maxSpeed: 2.8, acceleration: 0.018, braking: 0.05, weight: 1.1, steerFactor: 1.2, canReverse: true },
+            jet: { maxSpeed: 6.8, acceleration: 0.045, braking: 0.09, weight: 1.5, steerFactor: 1.2, canReverse: false },
+            boat: { maxSpeed: 3.5, acceleration: 0.022, braking: 0.07, weight: 1.0, steerFactor: 1.3, canReverse: true },
+            yacht: { maxSpeed: 2.2, acceleration: 0.012, braking: 0.04, weight: 3.2, steerFactor: 0.8, canReverse: true }
+        };
+
+        // --- STAGE ENVIRONMENT THEMES ---
+        const STAGE_THEMES = [
+            { 
+                skyColor: 0x87CEEB, fogColor: 0x87CEEB, fogDensity: 0.002, grassColor: 0x4c9f50,
+                buildingColors: [0x222633, 0x11131a, 0x2b3140, 0x161c2b], windowColor: 0x00ffcc,
+                lightColor: 0xffffff, lightIntensity: 1.1, hoopColor: 0x00ffcc, themeName: "Bright Metropolis"
+            },
+            { 
+                skyColor: 0xfd5e53, fogColor: 0xfd5e53, fogDensity: 0.003, grassColor: 0x6e4e37, 
+                buildingColors: [0x421c1c, 0x261414, 0x3d271d], windowColor: 0xffaa00,
+                lightColor: 0xffddaa, lightIntensity: 0.8, hoopColor: 0xff9900, themeName: "Sunset Ridge"
+            },
+            { 
+                skyColor: 0x020308, fogColor: 0x080014, fogDensity: 0.004, grassColor: 0x110222, 
+                buildingColors: [0x080914, 0x120224, 0x031c26], windowColor: 0xff00ff, 
+                lightColor: 0x9900ff, lightIntensity: 0.5, hoopColor: 0x00ffff, themeName: "Neon City Grid"
+            },
+            { 
+                skyColor: 0xd3dbdb, fogColor: 0xd3dbdb, fogDensity: 0.015, grassColor: 0x2c4c38, 
+                buildingColors: [0x422f25, 0x2e2019, 0x4f443b], windowColor: 0xffeaad,
+                lightColor: 0xffffff, lightIntensity: 0.6, hoopColor: 0xff4500, themeName: "Misty Mountain Pines"
+            },
+            { 
+                skyColor: 0x1a2130, fogColor: 0x1a2130, fogDensity: 0.005, grassColor: 0x1e2e28, 
+                buildingColors: [0x0f111a, 0x181e29, 0x0b0d12], windowColor: 0x00ff88,
+                lightColor: 0xaaffdd, lightIntensity: 0.7, hoopColor: 0xff0055, themeName: "Stormy Apex Arena"
+            }
+        ];
+
+        // --- STAGE DATA BOUNDS ---
+        const TRACK_DATA = [
+            // 0: Beginner Oval
+            [ [0,0,50], [50,0,50], [100,0,0], [50,0,-50], [0,0,-50], [-50,0,0] ],
+            // 1: Figure 8
+            [ [0,0,80], [60,0,40], [10,0,-10], [-50,0,-60], [0,0,-100], [50,0,-60], [-10,0,-10], [-60,0,40] ],
+            // 2: ZigZag
+            [ [0,0,60], [40,0,20], [-30,0,-20], [40,0,-60], [0,0,-100], [-60,0,-40] ],
+            // 3: Hairpins
+            [ [0,0,50], [40,0,50], [40,0,0], [-40,0,0], [-40,0,-50], [40,0,-50], [60,0,-20], [60,0,80], [-20,0,80] ],
+            // 4: Pro Circuit
+            [ [0,0,100], [80,0,100], [120,0,40], [60,0,0], [100,0,-60], [0,0,-120], [-80,0,-80], [-40,0,-20], [-100,0,40] ]
+        ];
+
+        // --- CATEGORIZATION SWITCH BINDINGS ---
+        let airButtons, landButtons, waterButtons;
+
+        // --- HOISTED UI & TIME FORMATTING UTILITIES ---
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            if (id) {
+                const screenEl = document.getElementById(id);
+                if (screenEl) screenEl.classList.add('active');
+            }
+        }
+
+        function formatTime(timeInSeconds) {
+            let m = Math.floor(timeInSeconds / 60);
+            let s = Math.floor(timeInSeconds % 60);
+            let ms = Math.floor((timeInSeconds * 100) % 100);
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+        }
+
+        // --- WINDOW RESIZE CALLBACK ---
+        function onWindowResize() {
+            if (camera && renderer) {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        }
+
+        // --- CATEGORY SYNC UTILITIES ---
+        function deselectCategory(buttons) {
+            if (!buttons) return;
+            buttons.forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-vehicle') === 'none') {
+                    btn.classList.add('active');
+                }
+            });
+        }
+
+        function verifyActiveVehicle() {
+            let activeFound = false;
+            ['plane', 'heli', 'jet', 'car', 'bus', 'boat', 'yacht'].forEach(v => {
+                const btn = document.querySelector(`[data-vehicle="${v}"]`);
+                if (btn && btn.classList.contains('active')) {
+                    currentVehicleType = v;
+                    activeFound = true;
+                }
+            });
+            if (!activeFound) {
+                const carBtn = document.querySelector('#land-options [data-vehicle="car"]');
+                if (carBtn) {
+                    carBtn.classList.add('active');
+                    const landNone = document.querySelector('#land-options [data-vehicle="none"]');
+                    if (landNone) landNone.classList.remove('active');
+                    currentVehicleType = 'car';
+                }
+            }
+        }
+
+        function setupCategorySync(group, otherGroups) {
+            if (!group) return;
+            group.forEach(btn => {
+                btn.onclick = () => {
+                    const vehicle = btn.getAttribute('data-vehicle');
+                    if (vehicle !== 'none') {
+                        group.forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        otherGroups.forEach(otherGroup => deselectCategory(otherGroup));
+                        currentVehicleType = vehicle;
+                    } else {
+                        btn.classList.add('active');
+                        group.forEach(b => { if(b !== btn) b.classList.remove('active'); });
+                        verifyActiveVehicle();
+                    }
+                    if (vehicleGroup) {
+                        rebuildVehicleModel();
+                    }
+                };
+            });
+        }
+
+        // --- ENVIRONMENT BUILDERS ---
+        function createDriftingClouds() {
+            const cloudColors = [0xffffff, 0xf0f5ff];
+            for (let i = 0; i < 25; i++) {
+                const cloud = new THREE.Group();
+                cloud.name = 'env';
+                const sphereGeom = new THREE.SphereGeometry(6 + Math.random() * 6, 8, 8);
+                const cloudMat = new THREE.MeshLambertMaterial({ 
+                    color: cloudColors[Math.floor(Math.random() * cloudColors.length)], 
+                    transparent: true, opacity: 0.85 
+                });
+                const numSpheres = 3 + Math.floor(Math.random() * 4);
+                for (let j = 0; j < numSpheres; j++) {
+                    const mesh = new THREE.Mesh(sphereGeom, cloudMat);
+                    mesh.position.set((j - numSpheres/2) * 6, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 4);
+                    cloud.add(mesh);
+                }
+                cloud.position.set((Math.random() - 0.5) * 1200, 60 + Math.random() * 40, (Math.random() - 0.5) * 1200);
+                scene.add(cloud);
+            }
+        }
+
+        function createDetailedTree() {
+            const treeGroup = new THREE.Group();
+            treeGroup.name = 'env';
+
+            const trunkGeo = new THREE.CylinderGeometry(0.2, 0.35, 2.5, 8);
+            const trunkMat = new THREE.MeshPhongMaterial({ color: 0x4d3224 });
+            const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+            trunk.position.y = 1.25;
+            trunk.castShadow = true;
+            treeGroup.add(trunk);
+
+            const leafTiers = [
+                { r: 2.0, h: 2.5, y: 3.2, col: 0x245a34 },
+                { r: 1.5, h: 2.0, y: 4.6, col: 0x2e7543 },
+                { r: 1.0, h: 1.5, y: 5.8, col: 0x3b9354 }
+            ];
+
+            leafTiers.forEach(tier => {
+                const leafGeo = new THREE.ConeGeometry(tier.r, tier.h, 6);
+                const leafMat = new THREE.MeshPhongMaterial({ color: tier.col, flatShading: true });
+                const leaf = new THREE.Mesh(leafGeo, leafMat);
+                leaf.position.y = tier.y;
+                leaf.castShadow = true;
+                treeGroup.add(leaf);
+            });
+
+            const scale = 0.8 + Math.random() * 0.4;
+            treeGroup.scale.set(scale, scale, scale);
+            return treeGroup;
+        }
+
+        // --- DETAILED WHEELS LOADER ---
+        function addWheelsToContainer(container, positions, radius, width) {
+            const wheelGeo = new THREE.CylinderGeometry(radius, radius, width, 24);
+            wheelGeo.rotateZ(Math.PI / 2);
+            const wheelMat = new THREE.MeshPhongMaterial({ color: 0x15161c, shininess: 8 });
+
+            const caliperGeo = new THREE.BoxGeometry(0.12, 0.22, 0.25);
+            const caliperMat = new THREE.MeshPhongMaterial({ color: 0xff0000, emissive: 0xaa0000 });
+
+            positions.forEach((pos, idx) => {
+                const wheelGroup = new THREE.Group();
+                wheelGroup.position.set(pos[0], pos[1], pos[2]);
+
+                const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+                wheel.castShadow = true;
+                wheelGroup.add(wheel);
+
+                if (idx >= 2) {
+                    const caliper = new THREE.Mesh(caliperGeo, caliperMat);
+                    caliper.position.set(pos[0] < 0 ? 0.08 : -0.08, 0.12, 0);
+                    wheelGroup.add(caliper);
+                }
+
+                container.add(wheelGroup);
+            });
+        }
+
+        // -- VEHICLE SUB-ASSEMBLERS (DETAILED & SOPHISTICATED 3D MODEL DESIGNS) --
+        function buildSportsCar(chassis, rootGroup, primaryColorHex) {
+            const bodyGeo = new THREE.BoxGeometry(1.8, 0.45, 4);
+            const bodyMat = new THREE.MeshPhongMaterial({ color: primaryColorHex, shininess: 120 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.4;
+            body.castShadow = true;
+            chassis.add(body);
+
+            const splitterGeo = new THREE.BoxGeometry(2.0, 0.08, 0.8);
+            const splitterMat = new THREE.MeshPhongMaterial({ color: 0x15161d });
+            const splitter = new THREE.Mesh(splitterGeo, splitterMat);
+            splitter.position.set(0, 0.12, 1.8);
+            chassis.add(splitter);
+
+            const exhaustGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.5, 8);
+            exhaustGeo.rotateX(Math.PI / 2);
+            const ex1 = new THREE.Mesh(exhaustGeo, new THREE.MeshPhongMaterial({ color: 0x444 }));
+            ex1.position.set(-0.5, 0.22, -2.0);
+            const ex2 = ex1.clone();
+            ex2.position.x = 0.5;
+            chassis.add(ex1); chassis.add(ex2);
+
+            const fireGeo = new THREE.ConeGeometry(0.1, 0.8, 8);
+            fireGeo.rotateX(-Math.PI / 2);
+            const fireMat = new THREE.MeshBasicMaterial({ color: 0xffa500, transparent: true, opacity: 0.8 });
+            exhaustFireL = new THREE.Mesh(fireGeo, fireMat);
+            exhaustFireL.position.set(-0.5, 0.22, -2.4);
+            exhaustFireL.scale.set(0.1, 0.1, 0.1);
+            chassis.add(exhaustFireL);
+
+            exhaustFireR = exhaustFireL.clone();
+            exhaustFireR.position.x = 0.5;
+            chassis.add(exhaustFireR);
+
+            const glassMat = new THREE.MeshPhongMaterial({ color: 0x111115, shininess: 200, transparent: true, opacity: 0.8 });
+            const cockpitGeo = new THREE.BoxGeometry(1.3, 0.4, 1.7);
+            const cockpit = new THREE.Mesh(cockpitGeo, glassMat);
+            cockpit.position.set(0, 0.75, -0.3);
+            chassis.add(cockpit);
+
+            const spoilerGeo = new THREE.BoxGeometry(1.9, 0.08, 0.45);
+            const spoiler = new THREE.Mesh(spoilerGeo, bodyMat);
+            spoiler.position.set(0, 0.85, -1.8);
+            chassis.add(spoiler);
+
+            addWheelsToContainer(chassis, [[-1, 0.42, 1.25], [1, 0.42, 1.25], [-1, 0.42, -1.25], [1, 0.42, -1.25]], 0.42, 0.35);
+        }
+
+        function buildMetroBus(chassis, rootGroup, primaryColorHex) {
+            const bodyGeo = new THREE.BoxGeometry(2.1, 1.6, 6.5);
+            const bodyMat = new THREE.MeshPhongMaterial({ color: primaryColorHex, shininess: 80 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 1.0;
+            chassis.add(body);
+
+            const windShieldGeo = new THREE.BoxGeometry(1.9, 0.8, 0.1);
+            const glassMat = new THREE.MeshPhongMaterial({ color: 0x111e2e, transparent: true, opacity: 0.85 });
+            const windShield = new THREE.Mesh(windShieldGeo, glassMat);
+            windShield.position.set(0, 1.2, 3.26);
+            chassis.add(windShield);
+
+            addWheelsToContainer(chassis, [[-1.1, 0.45, 2.3], [1.1, 0.45, 2.3], [-1.1, 0.45, -0.8], [1.1, 0.45, -0.8], [-1.1, 0.45, -2.3], [1.1, 0.45, -2.3]], 0.45, 0.42);
+        }
+
+        function buildStuntPlane(chassis, rootGroup, primaryColorHex) {
+            const fuseGeo = new THREE.CylinderGeometry(0.5, 0.2, 4.8, 12);
+            fuseGeo.rotateX(Math.PI / 2);
+            const bodyMat = new THREE.MeshPhongMaterial({ color: primaryColorHex });
+            const fuselage = new THREE.Mesh(fuseGeo, bodyMat);
+            fuselage.position.y = 0.6;
+            chassis.add(fuselage);
+
+            const wingMat = new THREE.MeshPhongMaterial({ color: 0xffaa00 });
+            const topWing = new THREE.Mesh(new THREE.BoxGeometry(7.0, 0.08, 1.1), wingMat);
+            topWing.position.set(0, 1.4, 0.4);
+            chassis.add(topWing);
+
+            const bottomWing = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.08, 1.0), wingMat);
+            bottomWing.position.set(0, 0.5, 0.5);
+            chassis.add(bottomWing);
+
+            const localPropeller = new THREE.Group();
+            localPropeller.position.set(0, 0.6, 2.45);
+            const blades = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.16, 0.04), new THREE.MeshPhongMaterial({ color: 0x111113 }));
+            localPropeller.add(blades);
+            const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.5, 10), bodyMat);
+            spinner.rotation.x = Math.PI / 2;
+            spinner.position.z = 0.2;
+            localPropeller.add(spinner);
+            chassis.add(localPropeller);
+
+            if (rootGroup === vehicleGroup) propellerMesh = localPropeller;
+
+            addWheelsToContainer(chassis, [[-0.8, 0.25, 1.0], [0.8, 0.25, 1.0], [0, 0.2, -1.8]], 0.22, 0.15);
+        }
+
+        function buildFighterJet(chassis, rootGroup, primaryColorHex) {
+            const bodyMat = new THREE.MeshPhongMaterial({ color: primaryColorHex, shininess: 160 });
+            const steelMat = new THREE.MeshPhongMaterial({ color: 0x22252c, metallic: true, shininess: 80 });
+            const glassMat = new THREE.MeshPhongMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.6, shininess: 300 });
+
+            // Elongated streamlined Fuselage
+            const fuseGeo = new THREE.CylinderGeometry(0.38, 0.15, 6.0, 16);
+            fuseGeo.rotateX(Math.PI / 2);
+            const fuselage = new THREE.Mesh(fuseGeo, bodyMat);
+            fuselage.position.set(0, 0.6, -0.2);
+            chassis.add(fuselage);
+
+            // Needle Nose Cone
+            const noseCone = new THREE.Mesh(new THREE.ConeGeometry(0.38, 2.2, 16), bodyMat);
+            noseCone.rotation.x = Math.PI / 2;
+            noseCone.position.set(0, 0.6, 3.9);
+            chassis.add(noseCone);
+
+            // Refined Side Jet Air Intakes
+            const intakeLeft = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.35, 1.6), steelMat);
+            intakeLeft.position.set(-0.48, 0.55, 1.6);
+            intakeLeft.rotation.y = -Math.PI / 20;
+            const intakeRight = intakeLeft.clone();
+            intakeRight.position.x = 0.48;
+            intakeRight.rotation.y = Math.PI / 20;
+            chassis.add(intakeLeft); chassis.add(intakeRight);
+
+            // Swept Delta Wings with subtle depth
+            const wingShape = new THREE.Shape();
+            wingShape.moveTo(0, 1.0);
+            wingShape.lineTo(-3.4, -2.6);
+            wingShape.lineTo(-3.2, -3.0);
+            wingShape.lineTo(0, -1.8);
+            wingShape.lineTo(3.2, -3.0);
+            wingShape.lineTo(3.4, -2.6);
+            wingShape.lineTo(0, 1.0);
+
+            const extrudeSettings = { depth: 0.08, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: 0.02, bevelThickness: 0.02 };
+            const wingGeo = new THREE.ExtrudeGeometry(wingShape, extrudeSettings);
+            wingGeo.rotateX(-Math.PI / 2);
+            const wings = new THREE.Mesh(wingGeo, bodyMat);
+            wings.position.set(0, 0.58, 0.2);
+            wings.castShadow = true;
+            chassis.add(wings);
+
+            // Twin Outward-Angled Tail Fins
+            const tailFinL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.4, 0.8), bodyMat);
+            tailFinL.position.set(-0.48, 1.4, -2.4);
+            tailFinL.rotation.y = -Math.PI / 24;
+            tailFinL.rotation.z = -Math.PI / 12;
+            const tailFinR = tailFinL.clone();
+            tailFinR.position.x = 0.48;
+            tailFinR.rotation.y = Math.PI / 24;
+            tailFinR.rotation.z = Math.PI / 12;
+            chassis.add(tailFinL); chassis.add(tailFinR);
+
+            // Realistic Dual Exhaust Nozzles (Afterburners)
+            const nozzleL = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.6, 12), steelMat);
+            nozzleL.rotateX(Math.PI / 2);
+            nozzleL.position.set(-0.25, 0.6, -3.4);
+            const nozzleR = nozzleL.clone();
+            nozzleR.position.x = 0.25;
+            chassis.add(nozzleL); chassis.add(nozzleR);
+
+            // Active Blue Afterburner Combustion Cones
+            const fireGeo = new THREE.ConeGeometry(0.14, 1.5, 12);
+            fireGeo.rotateX(-Math.PI / 2);
+            const fireMat = new THREE.MeshBasicMaterial({ color: 0x00f3ff, transparent: true, opacity: 0.85 }); 
+            exhaustFireL = new THREE.Mesh(fireGeo, fireMat);
+            exhaustFireL.position.set(-0.25, 0.6, -4.2);
+            exhaustFireL.scale.set(0.1, 0.1, 0.1);
+            chassis.add(exhaustFireL);
+
+            exhaustFireR = exhaustFireL.clone();
+            exhaustFireR.position.x = 0.25;
+            chassis.add(exhaustFireR);
+
+            // Streamlined Canopy Bubble with Framed Windows
+            const bubbleGeo = new THREE.SphereGeometry(0.3, 24, 24);
+            const bubble = new THREE.Mesh(bubbleGeo, glassMat);
+            bubble.position.set(0, 0.92, 1.2);
+            bubble.scale.set(1, 1.1, 2.5);
+            chassis.add(bubble);
+
+            // Add Underwing External Fuel Tank Pods
+            const tankGeo = new THREE.CylinderGeometry(0.12, 0.12, 1.8, 10);
+            tankGeo.rotateX(Math.PI / 2);
+            const tankL = new THREE.Mesh(tankGeo, steelMat);
+            tankL.position.set(-1.6, 0.32, -1.0);
+            const tankR = tankL.clone();
+            tankR.position.x = 1.6;
+            chassis.add(tankL); chassis.add(tankR);
+
+            addWheelsToContainer(chassis, [[-0.8, 0.22, 0.6], [0.8, 0.22, 0.6], [0, 0.18, -1.8]], 0.22, 0.15);
+        }
+
+        function buildSpeedboat(chassis, primaryColorHex) {
+            const bodyMat = new THREE.MeshPhongMaterial({ color: primaryColorHex, shininess: 160 });
+            const steelMat = new THREE.MeshPhongMaterial({ color: 0x22252c, shininess: 90 });
+            const whiteMat = new THREE.MeshPhongMaterial({ color: 0xe0e6ed });
+            const glassMat = new THREE.MeshPhongMaterial({ color: 0x00ccff, transparent: true, opacity: 0.7 });
+
+            // Streamlined Dual-Canal Catamaran Deep-V Hull
+            const hullGroup = new THREE.Group();
+            
+            const mainHull = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.5, 4.4), bodyMat);
+            mainHull.position.y = 0.35;
+            hullGroup.add(mainHull);
+
+            // Sharp tapered bow nose segment
+            const bowGeo = new THREE.ConeGeometry(0.8, 1.8, 4);
+            bowGeo.rotateX(Math.PI / 2);
+            bowGeo.rotateZ(Math.PI / 4); // Rotate square cone to form faceted yacht bow
+            const bow = new THREE.Mesh(bowGeo, bodyMat);
+            bow.position.set(0, 0.35, 3.1);
+            hullGroup.add(bow);
+
+            // Contoured side chines for wave deflection
+            const chineL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.3, 4.2), whiteMat);
+            chineL.position.set(-0.85, 0.3, 0.2);
+            chineL.rotation.y = -Math.PI/180;
+            const chineR = chineL.clone();
+            chineR.position.x = 0.85;
+            hullGroup.add(chineL); hullGroup.add(chineR);
+
+            // Luxurious Cockpit Console with Dual Seats
+            const cockpitArea = new THREE.Group();
+            cockpitArea.position.set(0, 0.6, 0.2);
+            
+            const seatBackGeo = new THREE.BoxGeometry(0.5, 0.5, 0.12);
+            const seatBaseGeo = new THREE.BoxGeometry(0.5, 0.12, 0.5);
+            const seatMat = new THREE.MeshPhongMaterial({ color: 0xd9381e }); // Bright Sports Red
+
+            const seatLeft = new THREE.Group();
+            const sbL = new THREE.Mesh(seatBackGeo, seatMat); sbL.position.set(0, 0.25, -0.25);
+            const sblBase = new THREE.Mesh(seatBaseGeo, seatMat);
+            seatLeft.add(sbL); seatLeft.add(sblBase);
+            seatLeft.position.set(-0.4, 0, 0);
+
+            const seatRight = seatLeft.clone();
+            seatRight.position.x = 0.4;
+            cockpitArea.add(seatLeft); cockpitArea.add(seatRight);
+            hullGroup.add(cockpitArea);
+
+            // Framed wrap-around curved windscreen
+            const screenGeo = new THREE.TorusGeometry(0.7, 0.08, 8, 16, Math.PI);
+            const windscreen = new THREE.Mesh(screenGeo, glassMat);
+            windscreen.position.set(0, 0.75, 1.4);
+            windscreen.rotation.x = Math.PI / 3;
+            hullGroup.add(windscreen);
+
+            // Outboard Dual Chrome Motor Blocks
+            const motorGeo = new THREE.BoxGeometry(0.38, 0.8, 0.45);
+            const motor1 = new THREE.Mesh(motorGeo, steelMat);
+            motor1.position.set(-0.45, 0.4, -2.4);
+            
+            // Add miniature rotating propeller hubs
+            const propHub = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.2, 8), steelMat);
+            propHub.rotateX(Math.PI/2);
+            propHub.position.set(0, -0.3, -0.25);
+            motor1.add(propHub);
+
+            const motor2 = motor1.clone();
+            motor2.position.x = 0.45;
+            hullGroup.add(motor1); hullGroup.add(motor2);
+
+            // Chrome Railings
+            const railGeo = new THREE.CylinderGeometry(0.02, 0.02, 3.2, 8);
+            railGeo.rotateX(Math.PI / 2);
+            const railL = new THREE.Mesh(railGeo, steelMat);
+            railL.position.set(-0.78, 0.7, 1.0);
+            const railR = railL.clone();
+            railR.position.x = 0.78;
+            hullGroup.add(railL); hullGroup.add(railR);
+
+            chassis.add(hullGroup);
+        }
+
+        function buildSuperyacht(chassis, primaryColorHex) {
+            const hullMat = new THREE.MeshPhongMaterial({ color: primaryColorHex, shininess: 120 });
+            const woodMat = new THREE.MeshPhongMaterial({ color: 0xb58a5f, shininess: 20 }); // Fine teak wood deck
+            const glassMat = new THREE.MeshPhongMaterial({ color: 0x112233, transparent: true, opacity: 0.85, shininess: 250 });
+            const steelMat = new THREE.MeshPhongMaterial({ color: 0xe6eef4, shininess: 150 }); 
+            const whiteHullMat = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 100 });
+
+            const yachtGroup = new THREE.Group();
+
+            // Aggressive raked deep-V monohull
+            const hullGeo = new THREE.BoxGeometry(2.3, 0.95, 7.2);
+            const hull = new THREE.Mesh(hullGeo, whiteHullMat);
+            hull.position.set(0, 0.47, -0.2);
+            hull.castShadow = true;
+            yachtGroup.add(hull);
+
+            const bowGeo = new THREE.ConeGeometry(1.15, 2.6, 4);
+            bowGeo.rotateX(Math.PI / 2);
+            bowGeo.rotateZ(Math.PI / 4);
+            const bow = new THREE.Mesh(bowGeo, whiteHullMat);
+            bow.position.set(0, 0.47, 4.6);
+            yachtGroup.add(bow);
+
+            // Multi-tiered deck layout (Teak Wood Decking sheets)
+            const mainDeck = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.05, 6.4), woodMat);
+            mainDeck.position.set(0, 0.96, -0.2);
+            yachtGroup.add(mainDeck);
+
+            // Tier 1 - Bridge Deck House
+            const deck1 = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.75, 4.2), steelMat);
+            deck1.position.set(0, 1.35, -1.0);
+            yachtGroup.add(deck1);
+
+            // Tier 2 - Flybridge Superstructure
+            const deck2 = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.65, 2.8), steelMat);
+            deck2.position.set(0, 1.95, -1.5);
+            yachtGroup.add(deck2);
+
+            // Panoramic dark structural windows
+            const windowsLower = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.38, 2.5), glassMat);
+            windowsLower.position.set(0, 1.45, -0.6);
+            yachtGroup.add(windowsLower);
+
+            const windowsUpper = new THREE.Mesh(new THREE.BoxGeometry(1.53, 0.3, 1.8), glassMat);
+            windowsUpper.position.set(0, 2.05, -1.3);
+            yachtGroup.add(windowsUpper);
+
+            // Navigation Arch & Rotating Radar Array dome on the flybridge
+            const radarArch = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.4, 0.35), steelMat);
+            radarArch.position.set(0, 2.4, -2.4);
+            
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 12), whiteHullMat);
+            dome.position.set(0, 0.3, 0);
+            radarArch.add(dome);
+            yachtGroup.add(radarArch);
+
+            // Stern swim platform with chrome staircase rails
+            const swimPlatform = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.15, 0.6), woodMat);
+            swimPlatform.position.set(0, 0.15, -4.0);
+            yachtGroup.add(swimPlatform);
+
+            chassis.add(yachtGroup);
+        }
+
+        function buildHelicopter(chassis, primaryColorHex) {
+            const bodyMat = new THREE.MeshPhongMaterial({ color: 0x2e3532, shininess: 40 }); // Tactical Olive-Drab Military coating
+            const metalMat = new THREE.MeshPhongMaterial({ color: 0x111113, shininess: 90 });
+            const canopyMat = new THREE.MeshPhongMaterial({ color: 0x1a2c1a, transparent: true, opacity: 0.85, shininess: 200 });
+
+            // Faceted Military Cockpit/Cabin (Apache style)
+            const cabinGeo = new THREE.BoxGeometry(1.1, 1.1, 2.8);
+            const cabin = new THREE.Mesh(cabinGeo, bodyMat);
+            cabin.position.y = 0.8;
+            cabin.castShadow = true;
+            chassis.add(cabin);
+
+            // Angled Nose Cone with Forward-Looking Infra-Red (FLIR) gimbal sensor dome
+            const noseGeo = new THREE.ConeGeometry(0.55, 1.0, 4);
+            noseGeo.rotateX(Math.PI / 2);
+            noseGeo.rotateZ(Math.PI / 4);
+            const nose = new THREE.Mesh(noseGeo, bodyMat);
+            nose.position.set(0, 0.65, 1.9);
+            chassis.add(nose);
+
+            const flirBall = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 12), metalMat);
+            flirBall.position.set(0, 0.45, 2.3);
+            chassis.add(flirBall);
+
+            // Double Turbine Jet Engine exhausts on fuselage shoulders
+            const engineHousing = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.48, 1.8), bodyMat);
+            engineHousing.position.set(0, 1.45, -0.2);
+            chassis.add(engineHousing);
+
+            const exhaustL = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.6, 12), metalMat);
+            exhaustL.rotateX(Math.PI / 2);
+            exhaustL.position.set(-0.45, 1.45, -1.2);
+            const exhaustR = exhaustL.clone();
+            exhaustR.position.x = 0.45;
+            chassis.add(exhaustL); chassis.add(exhaustR);
+
+            // Faceted military cockpit windshields (Tandem configuration)
+            const windshield1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.45, 0.6), canopyMat);
+            windshield1.position.set(0, 1.1, 1.0);
+            windshield1.rotation.x = Math.PI / 6;
+            chassis.add(windshield1);
+
+            const windshield2 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.45, 0.6), canopyMat);
+            windshield2.position.set(0, 1.25, 0.1);
+            windshield2.rotation.x = Math.PI / 6;
+            chassis.add(windshield2);
+
+            // Armored stub wing sensor mounts
+            const wingGeo = new THREE.BoxGeometry(2.1, 0.1, 0.5);
+            const stubWings = new THREE.Mesh(wingGeo, bodyMat);
+            stubWings.position.set(0, 0.8, 0.2);
+            chassis.add(stubWings);
+
+            const searchlight = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.25, 10), metalMat);
+            searchlight.rotateX(Math.PI / 2);
+            searchlight.position.set(-1.0, 0.65, 0.2);
+            const cameraPod = searchlight.clone();
+            cameraPod.position.x = 1.0;
+            chassis.add(searchlight); chassis.add(cameraPod);
+
+            // Reinforced Heavy-Duty Tail Boom and stabilizers
+            const boomGeo = new THREE.CylinderGeometry(0.16, 0.08, 3.8, 12);
+            boomGeo.rotateX(Math.PI / 2);
+            const tailBoom = new THREE.Mesh(boomGeo, bodyMat);
+            tailBoom.position.set(0, 0.9, -2.4);
+            tailBoom.castShadow = true;
+            chassis.add(tailBoom);
+
+            // Angled vertical vertical fin with high-vis tips
+            const verticalFin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.1, 0.45), bodyMat);
+            verticalFin.position.set(0, 1.3, -4.1);
+            verticalFin.rotation.z = -Math.PI / 18;
+            chassis.add(verticalFin);
+
+            // Tactical landing gear skids (Fixed variable references from str1/str2 to strut1/strut2)
+            const skidBarGeo = new THREE.CylinderGeometry(0.06, 0.06, 3.5, 8);
+            skidBarGeo.rotateX(Math.PI / 2);
+            const skidStrutGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.6, 8);
+
+            const skidL = new THREE.Group();
+            const barL = new THREE.Mesh(skidBarGeo, metalMat);
+            skidL.add(barL);
+            const strut1 = new THREE.Mesh(skidStrutGeo, metalMat);
+            strut1.position.set(0, 0.32, 1.0);
+            strut1.rotation.z = -Math.PI / 10;
+            const strut2 = strut1.clone();
+            strut2.position.z = -1.0;
+            skidL.add(strut1); skidL.add(strut2);
+            skidL.position.set(-0.75, 0.05, 0);
+            chassis.add(skidL);
+
+            const skidR = skidL.clone();
+            skidR.position.x = 0.75;
+            skidR.children[1].rotation.z = Math.PI / 10;
+            skidR.children[2].rotation.z = Math.PI / 10;
+            chassis.add(skidR);
+
+            // Main High-Speed Rotor Assembly with structural control linkages
+            const localMainRotor = new THREE.Group();
+            localMainRotor.position.set(0, 1.7, -0.2);
+            
+            const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.4, 8), metalMat);
+            localMainRotor.add(shaft);
+
+            // Quad-Bladed rigid military rotors with structural detailing
+            const rotorBladesGroup = new THREE.Group();
+            const bladeGeo = new THREE.BoxGeometry(7.6, 0.03, 0.18);
+            const mainBlade1 = new THREE.Mesh(bladeGeo, metalMat);
+            mainBlade1.rotation.y = 0;
+            const mainBlade2 = mainBlade1.clone();
+            mainBlade2.rotation.y = Math.PI / 2;
+            rotorBladesGroup.add(mainBlade1);
+            rotorBladesGroup.add(mainBlade2);
+            rotorBladesGroup.position.y = 0.2;
+            localMainRotor.add(rotorBladesGroup);
+            chassis.add(localMainRotor);
+
+            // Tail stabilization rotor
+            const localTailRotor = new THREE.Group();
+            localTailRotor.position.set(0.22, 1.35, -4.1);
+            const tailBlades = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.03, 0.08), metalMat);
+            tailBlades.rotation.x = Math.PI / 4;
+            localTailRotor.add(tailBlades);
+            chassis.add(localTailRotor);
+
+            if (chassis === vehicleChassis) {
+                mainRotorMesh = rotorBladesGroup; // Assign blades group directly to spin
+                tailRotorMesh = localTailRotor;
+            }
+        }
+
+        function rebuildVehicleModel() {
+            while(vehicleGroup.children.length > 0){
+                const obj = vehicleGroup.children[0];
+                vehicleGroup.remove(obj);
+            }
+
+            vehicleChassis = new THREE.Group();
+            vehicleGroup.add(vehicleChassis);
+
+            propellerMesh = null;
+            mainRotorMesh = null;
+            tailRotorMesh = null;
+            leftBrakeCalipers = [];
+            rightBrakeCalipers = [];
+            exhaustFireL = null;
+            exhaustFireR = null;
+
+            const cfg = VEHICLE_CONFIGS[currentVehicleType] || VEHICLE_CONFIGS['car'];
+            maxSpeed = cfg.maxSpeed;
+            acceleration = cfg.acceleration;
+            braking = cfg.braking;
+
+            if (currentVehicleType === 'car') {
+                buildSportsCar(vehicleChassis, vehicleGroup, 0xff3300);
+            } else if (currentVehicleType === 'bus') {
+                buildMetroBus(vehicleChassis, vehicleGroup, 0x0055ff);
+            } else if (currentVehicleType === 'plane') {
+                buildStuntPlane(vehicleChassis, vehicleGroup, 0x00ffcc);
+            } else if (currentVehicleType === 'heli') {
+                buildHelicopter(vehicleChassis, 0x4a5d4e);
+            } else if (currentVehicleType === 'jet') {
+                buildFighterJet(vehicleChassis, vehicleGroup, 0x3a4454);
+            } else if (currentVehicleType === 'boat') {
+                buildSpeedboat(vehicleChassis, 0xffaa00);
+            } else if (currentVehicleType === 'yacht') {
+                buildSuperyacht(vehicleChassis, 0xffffff);
+            }
+
+            // Sync hoop visibility based on chosen category
+            const isAirVehicle = (currentVehicleType === 'plane' || currentVehicleType === 'heli' || currentVehicleType === 'jet');
+            aerialHoops.forEach(hoop => {
+                hoop.visible = isAirVehicle;
+            });
+        }
+
+        // --- STAGE GENERATION WITH WATER CANALS AND 3D ASSETS ---
+        function buildTrack(trackIndex) {
+            const theme = STAGE_THEMES[trackIndex];
+            scene.background.setHex(theme.skyColor);
+            scene.fog.color.setHex(theme.fogColor);
+            scene.fog.density = theme.fogDensity;
+            dirLight.color.setHex(theme.lightColor);
+            dirLight.intensity = theme.lightIntensity;
+
+            scene.children.forEach(child => {
+                if (child.name === 'grass' && child.material) {
+                    child.material.color.setHex(theme.grassColor);
+                }
+            });
+
+            if(trackMesh) scene.remove(trackMesh);
+            if(waterMeshL) scene.remove(waterMeshL);
+            if(waterMeshR) scene.remove(waterMeshR);
+            if(finishLineMesh) scene.remove(finishLineMesh);
+            scene.children = scene.children.filter(c => c.name !== 'env');
+            aerialHoops = [];
+            clearedHoopIndices.clear();
+
+            // CHORD POINTS DEFINITION (MUST BE TOP LEVEL IN THE FUNCTION)
+            let rawPoints = TRACK_DATA[trackIndex].map(p => new THREE.Vector3(p[0]*1.8, p[1], p[2]*1.8));
+            trackCurve = new THREE.CatmullRomCurve3(rawPoints, true, 'catmullrom', 0.5);
+            trackPoints = trackCurve.getSpacedPoints(300);
+
+            // DECLARED CRITICAL BOUNDS BEFORE REFERENCE TRIPS
+            const startPoint = trackCurve.getPointAt(0);
+            const tangent = trackCurve.getTangentAt(0).normalize();
+            const angle = Math.atan2(tangent.x, tangent.z);
+
+            const numPoints = 250;
+            const trackWidth = 14;
+            const canalWidth = 6;  
+
+            const roadVertices = [], leftWaterVertices = [], rightWaterVertices = [];
+            const roadIndices = [], leftWaterIndices = [], rightWaterIndices = [];
+            const roadUvs = [], leftWaterUvs = [], rightWaterUvs = [];
+
+            for (let i = 0; i <= numPoints; i++) {
+                const t = i / numPoints;
+                const point = trackCurve.getPointAt(t % 1.0);
+                const tangentLocal = trackCurve.getTangentAt(t % 1.0).normalize();
+                const normal = new THREE.Vector3(-tangentLocal.z, 0, tangentLocal.x).normalize();
+
+                const leftRoad = point.clone().add(normal.clone().multiplyScalar(-trackWidth / 2));
+                const rightRoad = point.clone().add(normal.clone().multiplyScalar(trackWidth / 2));
+                leftRoad.y = rightRoad.y = 0.05;
+
+                roadVertices.push(leftRoad.x, leftRoad.y, leftRoad.z);
+                roadVertices.push(rightRoad.x, rightRoad.y, rightRoad.z);
+                roadUvs.push(0, t * 15, 1, t * 15);
+
+                const leftCanalStart = point.clone().add(normal.clone().multiplyScalar(-trackWidth/2 - 2.5));
+                const leftCanalEnd = point.clone().add(normal.clone().multiplyScalar(-trackWidth/2 - 2.5 - canalWidth));
+                leftCanalStart.y = leftCanalEnd.y = 0.03;
+
+                leftWaterVertices.push(leftCanalStart.x, leftCanalStart.y, leftCanalStart.z);
+                leftWaterVertices.push(leftCanalEnd.x, leftCanalEnd.y, leftCanalEnd.z);
+                leftWaterUvs.push(0, t * 15, 1, t * 15);
+
+                const rightCanalStart = point.clone().add(normal.clone().multiplyScalar(trackWidth/2 + 2.5));
+                const rightCanalEnd = point.clone().add(normal.clone().multiplyScalar(trackWidth/2 + 2.5 + canalWidth));
+                rightCanalStart.y = rightCanalEnd.y = 0.03;
+
+                rightWaterVertices.push(rightCanalStart.x, rightCanalStart.y, rightCanalStart.z);
+                rightWaterVertices.push(rightCanalEnd.x, rightCanalEnd.y, rightCanalEnd.z);
+                rightWaterUvs.push(0, t * 15, 1, t * 15);
+
+                if (i < numPoints) {
+                    const r1 = i * 2;
+                    const r2 = (i + 1) * 2;
+                    roadIndices.push(r1, r1 + 1, r2, r1 + 1, r2 + 1, r2);
+                    leftWaterIndices.push(r1, r1 + 1, r2, r1 + 1, r2 + 1, r2);
+                    rightWaterIndices.push(r1, r1 + 1, r2, r1 + 1, r2 + 1, r2);
+                }
+            }
+
+            const roadGeo = new THREE.BufferGeometry();
+            roadGeo.setAttribute('position', new THREE.Float32BufferAttribute(roadVertices, 3));
+            roadGeo.setAttribute('uv', new THREE.Float32BufferAttribute(roadUvs, 2));
+            roadGeo.setIndex(roadIndices);
+            roadGeo.computeVertexNormals();
+            trackMesh = new THREE.Mesh(roadGeo, new THREE.MeshPhongMaterial({ color: 0x1f2129, side: THREE.DoubleSide, shininess: 12 }));
+            trackMesh.receiveShadow = true;
+            scene.add(trackMesh);
+
+            const waterMat = new THREE.MeshPhongMaterial({ 
+                color: 0x00a8ff, transparent: true, opacity: 0.8, side: THREE.DoubleSide, shininess: 100 
+            });
+
+            const leftWaterGeo = new THREE.BufferGeometry();
+            leftWaterGeo.setAttribute('position', new THREE.Float32BufferAttribute(leftWaterVertices, 3));
+            leftWaterGeo.setAttribute('uv', new THREE.Float32BufferAttribute(leftWaterUvs, 2));
+            leftWaterGeo.setIndex(leftWaterIndices);
+            leftWaterGeo.computeVertexNormals();
+            waterMeshL = new THREE.Mesh(leftWaterGeo, waterMat);
+            waterMeshL.name = "water";
+            scene.add(waterMeshL);
+
+            const rightWaterGeo = new THREE.BufferGeometry();
+            rightWaterGeo.setAttribute('position', new THREE.Float32BufferAttribute(rightWaterVertices, 3));
+            rightWaterGeo.setAttribute('uv', new THREE.Float32BufferAttribute(rightWaterUvs, 2));
+            rightWaterGeo.setIndex(rightWaterIndices);
+            rightWaterGeo.computeVertexNormals();
+            waterMeshR = new THREE.Mesh(rightWaterGeo, waterMat);
+            waterMeshR.name = "water";
+            scene.add(waterMeshR);
+
+            const flGeo = new THREE.PlaneGeometry(trackWidth, 2.5);
+            finishLineMesh = new THREE.Mesh(flGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+            finishLineMesh.position.copy(startPoint);
+            finishLineMesh.position.y = 0.06;
+            finishLineMesh.rotation.x = -Math.PI / 2;
+            finishLineMesh.rotation.z = angle;
+            scene.add(finishLineMesh);
+
+            const hoopMaterial = new THREE.MeshBasicMaterial({ color: theme.hoopColor, wireframe: true });
+            const hoopInnerGeo = new THREE.TorusGeometry(3.5, 0.3, 8, 24);
+            const numHoops = 8;
+            const isAirVehicle = (currentVehicleType === 'plane' || currentVehicleType === 'heli' || currentVehicleType === 'jet');
+            for (let i = 0; i < numHoops; i++) {
+                const t = (i + 0.5) / numHoops;
+                const p = trackCurve.getPointAt(t);
+                const tg = trackCurve.getTangentAt(t).normalize();
+                
+                const hoop = new THREE.Mesh(hoopInnerGeo, hoopMaterial);
+                hoop.position.copy(p);
+                hoop.position.y = 8 + Math.sin(i * 1.7) * 5; 
+                hoop.rotation.x = 0;
+                hoop.rotation.y = Math.atan2(tg.x, tg.z);
+                hoop.rotation.z = 0;
+                hoop.visible = isAirVehicle; // SET DYNAMIC VISIBILITY BASED ON CURRENT VEHICLE AT RUNTIME
+                hoop.name = 'env';
+                scene.add(hoop);
+                aerialHoops.push(hoop);
+            }
+
+            const numBuildings = 80;
+            for(let i = 0; i < numBuildings; i++) {
+                const t = Math.random();
+                const p = trackCurve.getPointAt(t);
+                const tg = trackCurve.getTangentAt(t).normalize();
+                const normal = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
+                const side = Math.random() < 0.5 ? -1 : 1;
+                const spawnDistance = 26.0 + Math.random() * 20.0;
+
+                const buildPos = p.clone().add(normal.multiplyScalar(side * spawnDistance));
+                buildPos.y = 0;
+
+                const height = 15.0 + Math.random() * 35.0;
+                const width = 6.0 + Math.random() * 5.0;
+                const building = new THREE.Mesh(new THREE.BoxGeometry(width, height, width), new THREE.MeshPhongMaterial({ 
+                    color: theme.buildingColors[Math.floor(Math.random() * theme.buildingColors.length)], shininess: 30 
+                }));
+                building.position.copy(buildPos);
+                building.position.y = height / 2;
+                building.castShadow = true;
+                building.name = 'env';
+                scene.add(building);
+            }
+
+            for (let i = 0; i < 40; i++) {
+                const t = Math.random();
+                const p = trackCurve.getPointAt(t);
+                const tg = trackCurve.getTangentAt(t).normalize();
+                const normal = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
+                const side = Math.random() < 0.5 ? -1 : 1;
+                const spawnDistance = 12.0 + Math.random() * 10.0;
+
+                const treePos = p.clone().add(normal.multiplyScalar(side * spawnDistance));
+                treePos.y = 0;
+
+                const tree = createDetailedTree();
+                tree.position.copy(treePos);
+                scene.add(tree);
+            }
+
+            if (currentVehicleType === 'boat' || currentVehicleType === 'yacht') {
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                const waterSpawn = startPoint.clone().add(normal.multiplyScalar(-trackWidth/2 - 2.5 - (canalWidth/2)));
+                vehicleGroup.position.copy(waterSpawn);
+                vehicleGroup.position.y = 0.05;
+            } else {
+                vehicleGroup.position.copy(startPoint);
+                vehicleGroup.position.y = 0.05;
+            }
+            vehicleGroup.rotation.set(0, angle, 0);
+
+            buildCpuRacers(startPoint, angle);
+        }
+
+        // --- PROCEDURAL CPU OPPONENTS (Intelligent Rubber-Banding) ---
+        function buildCpuRacers(startPoint, startAngle) {
+            cpuRacerGroups.forEach(g => scene.remove(g));
+            cpuRacerGroups = [];
+            cpuRacerData = [];
+
+            if (!enableCpuOpponents) return;
+
+            const cpuConfigs = [
+                { offset: -3.5, color: 0xffaa00, type: 'car', speedFactor: 0.75 },
+                { offset: 3.5, color: 0xcc00ff, type: 'car', speedFactor: 0.72 },
+                { offset: -7 - 2.5 - 3, color: 0x00ff00, type: 'boat', speedFactor: 0.78 } 
+            ];
+
+            cpuConfigs.forEach((cfg, index) => {
+                const group = new THREE.Group();
+                const chassis = new THREE.Group();
+                group.add(chassis);
+
+                if (cfg.type === 'car') {
+                    buildSportsCar(chassis, group, cfg.color);
+                } else {
+                    buildSpeedboat(chassis, cfg.color);
+                }
+
+                const normal = new THREE.Vector3(-Math.sin(startAngle + Math.PI/2), 0, Math.cos(startAngle + Math.PI/2)).normalize();
+                const offsetVec = normal.multiplyScalar(cfg.offset);
+                group.position.copy(startPoint).add(offsetVec);
+                group.rotation.set(0, startAngle, 0);
+
+                scene.add(group);
+                cpuRacerGroups.push(group);
+
+                cpuRacerData.push({
+                    t: 0.0,
+                    offset: cfg.offset,
+                    type: cfg.type,
+                    speedFactor: cfg.speedFactor,
+                    altitude: 0.05
+                });
+            });
+        }
+
+        function updateCpuRacers(delta) {
+            if (!enableCpuOpponents || !isRacing) return;
+
+            cpuRacerGroups.forEach((group, index) => {
+                const data = cpuRacerData[index];
+                
+                let tDiff = data.t - playerT;
+                if (tDiff > 0.5) tDiff -= 1.0;
+                if (tDiff < -0.5) tDiff += 1.0;
+
+                let speedMultiplier = data.speedFactor * 0.38; 
+                if (tDiff > 0.03) {
+                    speedMultiplier *= 0.4;
+                } else if (tDiff < -0.05) {
+                    speedMultiplier *= 1.35;
+                }
+
+                const maxPlayerSpeed = VEHICLE_CONFIGS[currentVehicleType].maxSpeed;
+                const progressSpeed = (maxPlayerSpeed * 0.0025) * speedMultiplier;
+                
+                data.t += progressSpeed * delta * 60;
+                if (data.t > 1.0) data.t -= 1.0;
+
+                const targetPos = trackCurve.getPointAt(data.t);
+                const tangentLocal = trackCurve.getTangentAt(data.t).normalize();
+                const normal = new THREE.Vector3(-tangentLocal.z, 0, tangentLocal.x).normalize();
+
+                const offsetPos = targetPos.clone().add(normal.multiplyScalar(data.offset));
+                offsetPos.y = data.altitude;
+
+                group.position.copy(offsetPos);
+                group.lookAt(offsetPos.clone().add(tangentLocal));
+            });
+        }
+
+        // --- PHYSICS & VERTICAL HEIGHT MANAGEMENT ENGINE ---
+        function updatePhysics(delta) {
+            const cfg = VEHICLE_CONFIGS[currentVehicleType] || VEHICLE_CONFIGS['car'];
+
+            if (keys.up) {
+                speed += acceleration;
+            } else if (keys.down) {
+                if (cfg.canReverse) {
+                    speed -= braking;
+                } else {
+                    if (speed > 0) speed -= braking;
+                }
+            }
+            
+            let currentFriction = friction;
+            let isOffTrack = false;
+            let isGrounded = (altitude < 1.0);
+
+            if (isGrounded) {
+                let closestDistSq = Infinity;
+                for(let i=0; i<trackPoints.length; i+=3) {
+                    const distSq = vehicleGroup.position.distanceToSquared(trackPoints[i]);
+                    if (distSq < closestDistSq) closestDistSq = distSq;
+                }
+
+                if (currentVehicleType === 'boat' || currentVehicleType === 'yacht') {
+                    const roadDist = Math.sqrt(closestDistSq);
+                    if (roadDist < 9.5 || roadDist > 16.5) {
+                        isOffTrack = true; 
+                    }
+                } else {
+                    if (closestDistSq > 72) {
+                        isOffTrack = true; 
+                    }
+                }
+            }
+
+            let activeMaxSteer = isOffTrack ? 0.09 : 0.055;
+
+            if (isOffTrack) {
+                currentFriction = offTrackFriction;
+                vehicleChassis.position.y = Math.sin(Date.now() * 0.18) * 0.05;
+                vehicleChassis.position.x = Math.cos(Date.now() * 0.18) * 0.02;
+            } else {
+                vehicleChassis.position.set(0, 0, 0);
+            }
+
+            speed *= currentFriction;
+
+            if (speed > maxSpeed) speed = maxSpeed;
+            if (speed < -maxSpeed / 2) speed = -maxSpeed / 2;
+
+            if (Math.abs(speed) > 0.01) {
+                let turnFactor = (Math.abs(speed) / maxSpeed);
+                if (turnFactor > 0.9) turnFactor = 0.9;
+                if (currentVehicleType === 'heli') turnFactor = 1.0;
+
+                const turnAmount = activeMaxSteer * turnFactor * (speed > 0 ? 1 : -1) * (cfg.steerFactor || 1.0);
+
+                if (keys.left) vehicleGroup.rotation.y += turnAmount;
+                if (keys.right) vehicleGroup.rotation.y -= turnAmount;
+            }
+
+            let Math_minDist = Infinity;
+            let closestTrackPoint = null;
+            for(let i=0; i<trackPoints.length; i+=4) {
+                const d = vehicleGroup.position.distanceTo(trackPoints[i]);
+                if (d < Math_minDist) {
+                    Math_minDist = d; closestTrackPoint = trackPoints[i];
+                }
+            }
+            if (Math_minDist > 120.0 && altitude < 1.5) {
+                const pushDirection = closestTrackPoint.clone().sub(vehicleGroup.position).normalize();
+                vehicleGroup.position.add(pushDirection.multiplyScalar(Math_minDist - 120.0));
+                speed *= 0.3;
+            }
+
+            if (currentVehicleType === 'plane' || currentVehicleType === 'jet') {
+                if (speed > 0.70) {
+                    if (keys.space) {
+                        targetAltitude += 0.45;
+                        isFlying = true;
+                    }
+                }
+                if (keys.shift && altitude > 0.05) {
+                    targetAltitude -= 0.45;
+                }
+                if (speed < 0.70 && altitude > 0.05) {
+                    targetAltitude -= 0.25;
+                }
+            } else if (currentVehicleType === 'heli') {
+                if (keys.space) {
+                    targetAltitude += 0.4;
+                    isFlying = true;
+                }
+                if (keys.shift && altitude > 0.05) {
+                    targetAltitude -= 0.4;
+                }
+            }
+
+            if (targetAltitude < 0.05) targetAltitude = 0.05;
+            if (targetAltitude > 45.0) targetAltitude = 45.0;
+
+            altitude = THREE.MathUtils.lerp(altitude, targetAltitude, 0.1);
+            vehicleGroup.position.y = altitude;
+
+            if (altitude > 0.3) {
+                const pitch = (targetAltitude - altitude) * 0.08;
+                vehicleChassis.rotation.x = THREE.MathUtils.clamp(pitch, -0.4, 0.4);
+                
+                if (keys.left) {
+                    vehicleChassis.rotation.z = THREE.MathUtils.lerp(vehicleChassis.rotation.z, -0.45, 0.1);
+                } else if (keys.right) {
+                    vehicleChassis.rotation.z = THREE.MathUtils.lerp(vehicleChassis.rotation.z, 0.45, 0.1);
+                } else {
+                    vehicleChassis.rotation.z = THREE.MathUtils.lerp(vehicleChassis.rotation.z, 0, 0.1);
+                }
+            } else {
+                vehicleChassis.rotation.set(0, 0, 0);
+            }
+
+            if (exhaustFireL && exhaustFireR) {
+                const fireScale = keys.up ? (0.4 + Math.random() * 0.6) : 0.01;
+                exhaustFireL.scale.set(fireScale, fireScale, fireScale);
+                exhaustFireR.scale.set(fireScale, fireScale, fireScale);
+            }
+
+            vehicleGroup.translateZ(speed);
+
+            document.getElementById('hud-speed').innerText = Math.round(Math.abs(speed) * 71.5);
+
+            aerialHoops.forEach((hoop, index) => {
+                if (!clearedHoopIndices.has(index)) {
+                    const dist = vehicleGroup.position.distanceTo(hoop.position);
+                    if (dist < 4.2) { 
+                        clearedHoopIndices.add(index);
+                        showHoopAlert();
+                    }
+                }
+            });
+
+            if (isRacing) {
+                const distToFinish = vehicleGroup.position.distanceTo(finishLineMesh.position);
+                let closestT = 0;
+                let minDist = Infinity;
+                for(let i=0; i<=20; i++) {
+                    const t = i/20;
+                    const p = trackCurve.getPointAt(t);
+                    const d = vehicleGroup.position.distanceToSquared(p);
+                    if(d < minDist) { minDist = d; closestT = t; }
+                }
+                playerT = closestT;
+
+                const expectedCheckpoint = checkPointsPassed / totalCheckpoints;
+                if (altitude < 3.0 && closestT < expectedCheckpoint - 0.25 && closestT > 0.1 && expectedCheckpoint < 0.85) {
+                    document.getElementById('wrong-way').style.display = 'block';
+                } else {
+                    document.getElementById('wrong-way').style.display = 'none';
+                }
+
+                if (closestT > expectedCheckpoint && closestT < expectedCheckpoint + 0.35) {
+                    checkPointsPassed++;
+                }
+
+                if (distToFinish < 18 && checkPointsPassed >= totalCheckpoints - 2) {
+                    checkPointsPassed = 0;
+                    currentLap++;
+                    if (currentLap > TOTAL_LAPS) {
+                        endGame();
+                    } else {
+                        document.getElementById('hud-lap').innerText = currentLap;
+                    }
+                }
+            }
+        }
+
+        // --- THREE.JS SETUP ---
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB); // Bright blue sunny sky
+            scene.fog = new THREE.FogExp2(0x87CEEB, 0.0025); // Atmospheric horizon fog
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+            renderer.domElement.id = 'game-canvas';
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+            scene.add(ambientLight);
+
+            dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
+            dirLight.position.set(150, 250, 100);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.camera.near = 0.5;
+            dirLight.shadow.camera.far = 600;
+            const d = 200;
+            dirLight.shadow.camera.left = -d;
+            dirLight.shadow.camera.right = d;
+            dirLight.shadow.camera.top = d;
+            dirLight.shadow.camera.bottom = -d;
+            scene.add(dirLight);
+
+            // Ground plane (Bright Track Grass)
+            const groundGeo = new THREE.PlaneGeometry(2000, 2000);
+            const groundMat = new THREE.MeshPhongMaterial({ color: 0x4c9f50, side: THREE.DoubleSide });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.name = 'grass';
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            createDriftingClouds();
+
+            vehicleGroup = new THREE.Group();
+            scene.add(vehicleGroup);
+
+            verifyActiveVehicle();
+            rebuildVehicleModel();
+            buildTrack(0);
+
+            window.addEventListener('resize', onWindowResize, false);
+            renderer.setAnimationLoop(animate);
+        }
+
+        // --- GAME CONTROL MANAGEMENT ---
+        function startGame() {
+            rebuildVehicleModel();
+            buildTrack(currentTrackIndex);
+            
+            speed = 0;
+            altitude = 0.05;
+            targetAltitude = 0.05;
+            isFlying = false;
+            currentLap = 1;
+            raceTime = 0;
+            checkPointsPassed = 0;
+            isRacing = true;
+            
+            document.getElementById('hud-lap').innerText = currentLap;
+            document.getElementById('hud-time').innerText = "00:00.00";
+            
+            showScreen(null);
+            document.getElementById('hud').style.display = 'flex';
+            document.getElementById('setup-icon-btn').style.display = 'flex';
+            document.getElementById('speedometer-panel').style.display = 'flex';
+        }
+
+        function endGame() {
+            isRacing = false;
+            document.getElementById('hud').style.display = 'none';
+            document.getElementById('setup-icon-btn').style.display = 'none';
+            document.getElementById('speedometer-panel').style.display = 'none';
+            document.getElementById('final-time').innerText = `Stage Time: ${formatTime(raceTime)}`;
+            showScreen('screen-result');
+        }
+
+        function showHoopAlert() {
+            const splash = document.getElementById('hoop-splash');
+            splash.style.display = 'block';
+            setTimeout(() => {
+                splash.style.display = 'none';
+            }, 600);
+        }
+
+        function updateCamera() {
+            const relativeCameraOffset = new THREE.Vector3(0, 5.0, -12.5);
+            const cameraOffset = relativeCameraOffset.applyMatrix4(vehicleGroup.matrixWorld);
+            camera.position.lerp(cameraOffset, 0.15);
+            const lookAtPos = vehicleGroup.position.clone().add(new THREE.Vector3(0, 0, 4.0).applyQuaternion(vehicleGroup.quaternion));
+            camera.lookAt(lookAtPos);
+        }
+
+        function animate() {
+            const delta = clock.getDelta();
+
+            if (isRacing) {
+                raceTime += delta;
+                document.getElementById('hud-time').innerText = formatTime(raceTime);
+            }
+
+            if (vehicleGroup && vehicleChassis) {
+                updatePhysics(delta);
+                updateCpuRacers(delta);
+                updateCamera();
+
+                if (propellerMesh) {
+                    propellerMesh.rotation.z += (speed + 0.1) * 3.0;
+                }
+                if (mainRotorMesh && tailRotorMesh) {
+                    const rotSpeed = keys.space ? 0.35 : 0.12;
+                    mainRotorMesh.rotation.y += rotSpeed;
+                    tailRotorMesh.rotation.x += rotSpeed;
+                }
+            }
+
+            scene.children.forEach(child => {
+                if (child.name === 'env' && child.children[0] && child.children[0].geometry.type === "SphereGeometry") {
+                    child.position.x += 0.05;
+                    if (child.position.x > 700) child.position.x = -700;
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // --- LEADERBOARD LOGIC ---
+        async function submitScore() {
+            if (!isOnline || !user) {
+                alert("Playing in offline sandbox loop.");
+                return;
+            }
+
+            const nameInput = document.getElementById('player-name-input').value.trim() || "RACER";
+            const btn = document.getElementById('btn-submit-score');
+            btn.disabled = true;
+            btn.innerText = "RECORDING...";
+
+            try {
+                const lbCollection = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+                await addDoc(lbCollection, {
+                    uid: user.uid,
+                    name: nameInput,
+                    trackId: currentTrackIndex,
+                    time: raceTime,
+                    timestamp: serverTimestamp()
+                });
+                btn.innerText = "RECORDED!";
+                setTimeout(() => {
+                    showScreen('screen-leaderboard');
+                    document.getElementById('lb-track-select').value = currentTrackIndex;
+                    loadLeaderboard(currentTrackIndex);
+                }, 1000);
+            } catch (error) {
+                console.error("Error saving score:", error);
+                btn.innerText = "CONN ERROR";
+                btn.disabled = false;
+            }
+        }
+
+        async function loadLeaderboard(trackIdStr) {
+            if (!isOnline || !user) {
+                document.getElementById('lb-list').innerHTML = "<div style='text-align:center; padding: 20px; color: var(--text-muted);'>No Server Connection</div>";
+                return;
+            }
+
+            const trackId = parseInt(trackIdStr);
+            const lbList = document.getElementById('lb-list');
+            lbList.innerHTML = "<div style='text-align:center; color:var(--text-muted);'>Fetching data...</div>";
+
+            try {
+                const lbCollection = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+                const querySnapshot = await getDocs(lbCollection);
+                let records = [];
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    if (data.trackId === trackId) {
+                        records.push(data);
+                    }
+                });
+
+                records.sort((a, b) => a.time - b.time);
+                records = records.slice(0, 10);
+
+                if (records.length === 0) {
+                    lbList.innerHTML = "<div style='text-align:center; padding: 20px; color: var(--text-muted);'>No telemetry records recorded yet.</div>";
+                    return;
+                }
+
+                let html = "";
+                records.forEach((r, index) => {
+                    let badge = `${index + 1}. `;
+                    if(index === 0) badge = "🥇 1st ";
+                    if(index === 1) badge = "🥈 2nd ";
+                    if(index === 2) badge = "🥉 3rd ";
+                    const highlight = r.uid === user.uid ? "font-weight:bold; color:var(--primary); border-color:var(--primary);" : "";
+                    html += `
+                        <div class="lb-entry" style="${highlight}">
+                            <span>${badge}${escapeHTML(r.name)}</span>
+                            <span>${formatTime(r.time)}</span>
+                        </div>
+                    `;
+                });
+                lbList.innerHTML = html;
+            } catch (error) {
+                console.error("Error loading leaderboard:", error);
+                lbList.innerHTML = "<div style='text-align:center; color:#ff3333;'>Query Error</div>";
+            }
+        }
+
+        document.getElementById('btn-submit-score').onclick = submitScore;
+
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+
+        // --- EVENT BINDING ENGINE ---
+        function setupEventListeners() {
+            // Document click to catch window focus
+            document.addEventListener('mousedown', () => window.focus());
+
+            // Menu screen setup transitions
+            const playBtn = document.getElementById('btn-play');
+            if (playBtn) playBtn.addEventListener('click', () => showScreen('screen-tracks'));
+
+            const backMenuBtn = document.getElementById('btn-back-menu');
+            if (backMenuBtn) backMenuBtn.addEventListener('click', () => showScreen('screen-menu'));
+
+            const showLbBtn = document.getElementById('btn-show-leaderboard');
+            if (showLbBtn) showLbBtn.addEventListener('click', () => {
+                showScreen('screen-leaderboard');
+                loadLeaderboard(document.getElementById('lb-track-select').value);
+            });
+
+            const backFromLbBtn = document.getElementById('btn-back-from-lb');
+            if (backFromLbBtn) backFromLbBtn.addEventListener('click', () => showScreen('screen-menu'));
+
+            const retryBtn = document.getElementById('btn-retry');
+            if (retryBtn) retryBtn.addEventListener('click', () => showScreen('screen-tracks'));
+
+            const menuFromResultBtn = document.getElementById('btn-menu-from-result');
+            if (menuFromResultBtn) menuFromResultBtn.addEventListener('click', () => showScreen('screen-menu'));
+
+            const startRaceBtn = document.getElementById('btn-start-race');
+            if (startRaceBtn) startRaceBtn.addEventListener('click', () => startGame());
+
+            // Setup Submit Score
+            const submitScoreBtn = document.getElementById('btn-submit-score');
+            if (submitScoreBtn) submitScoreBtn.addEventListener('click', submitScore);
+
+            // CPU toggle
+            const cpuToggleBtn = document.getElementById('btn-toggle-cpu');
+            if (cpuToggleBtn) {
+                cpuToggleBtn.addEventListener('click', () => {
+                    enableCpuOpponents = !enableCpuOpponents;
+                    if (enableCpuOpponents) {
+                        cpuToggleBtn.classList.add('active');
+                        cpuToggleBtn.innerText = "ENABLED";
+                    } else {
+                        cpuToggleBtn.classList.remove('active');
+                        cpuToggleBtn.innerText = "DISABLED";
+                    }
+                });
+            }
+
+            // Setup button click - Transition to screen configuration safely
+            const setupIconBtn = document.getElementById('setup-icon-btn');
+            if (setupIconBtn) {
+                setupIconBtn.addEventListener('click', () => {
+                    isRacing = false;
+                    document.getElementById('hud').style.display = 'none';
+                    setupIconBtn.style.display = 'none';
+                    document.getElementById('speedometer-panel').style.display = 'none';
+                    showScreen('screen-tracks');
+                });
+            }
+
+            // Leaderboard select dropdown
+            const lbTrackSelect = document.getElementById('lb-track-select');
+            if (lbTrackSelect) {
+                lbTrackSelect.addEventListener('change', (e) => loadLeaderboard(e.target.value));
+            }
+
+            // Track Selectors
+            const trackBtns = document.querySelectorAll('.select-track');
+            trackBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    trackBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentTrackIndex = parseInt(btn.getAttribute('data-track'));
+                });
+            });
+
+            // Keyboard input listeners with standard fallbacks
+            window.addEventListener('keydown', (e) => {
+                const k = e.key.toLowerCase();
+                if (k === 'w' || k === 'arrowup') keys.up = true;
+                if (k === 's' || k === 'arrowdown') keys.down = true;
+                if (k === 'a' || k === 'arrowleft') keys.left = true;
+                if (k === 'd' || k === 'arrowright') keys.right = true;
+                if (e.code === 'Space' || k === ' ') keys.space = true;
+                if (k === 'shift') keys.shift = true;
+            });
+
+            window.addEventListener('keyup', (e) => {
+                const k = e.key.toLowerCase();
+                if (k === 'w' || k === 'arrowup') keys.up = false;
+                if (k === 's' || k === 'arrowdown') keys.down = false;
+                if (k === 'a' || k === 'arrowleft') keys.left = false;
+                if (k === 'd' || k === 'arrowright') keys.right = false;
+                if (e.code === 'Space' || k === ' ') keys.space = false;
+                if (k === 'shift') keys.shift = false;
+            });
+
+            // --- BUTTON BINDING SYNCHRONIZER SETUP ---
+            const airButtons = document.querySelectorAll('#air-options .selector-btn');
+            const landButtons = document.querySelectorAll('#land-options .selector-btn');
+            const waterButtons = document.querySelectorAll('#water-options .selector-btn');
+
+            setupCategorySync(airButtons, [landButtons, waterButtons]);
+            setupCategorySync(landButtons, [airButtons, waterButtons]);
+            setupCategorySync(waterButtons, [airButtons, landButtons]);
+        }
+
+        // Safe async entry point handler
+        window.onload = async () => {
+            try {
+                // Initialize tactile button events and keyboard first so they NEVER freeze
+                setupEventListeners();
+                await initFirebase();
+            } catch (e) {
+                console.warn("Telemetry offline:", e);
+            } finally {
+                const loadingScreen = document.getElementById('loading');
+                if (loadingScreen) loadingScreen.style.display = 'none';
+                initThree();
+            }
+        };
+
+    </script>
+</body>
+</html>
