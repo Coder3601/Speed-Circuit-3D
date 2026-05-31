@@ -1,12 +1,12 @@
 # Speed Circuit 3D
 
-Speed Circuit 3D is an open-source racing and open world game built entirely with HTML and CSS — no game engines, no frameworks, just plain web tech pushed to see what it can do. It's a fun side project, nothing more, nothing less.
+Speed Circuit 3D is an open-source racing and open world game built entirely with HTML and CSS — no game engines, no frameworks, just plain web tech pushed to see what it can do. It's a fun side project.
 
 ---
 
 ## About
 
-The game drops you into an open world where you can drive around freely or race across circuits. It has 3D-styled vehicles and a handful of different biomes to explore, all put together without touching a game engine. The whole thing came out of curiosity about how far HTML and CSS could go as a medium for a game.
+The game drops you into an open world where you can drive around freely or race across circuits. It has 3D-styled vehicles and a handful of different biomes to explore. The whole thing built in HTML and CSS and JS used as the medium for the game.
 
 ---
 
@@ -16,7 +16,7 @@ The game drops you into an open world where you can drive around freely or race 
 - Racing across circuits
 - 3D vehicle models built in pure HTML & CSS
 - Multiple biomes with distinct looks
-- No engines, no canvas, no WebGL — just HTML and CSS doing everything
+- Just HTML CSS and JS.
 
 ---
 
